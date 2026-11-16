@@ -24,27 +24,27 @@
 <header id="topbar">
   <div class="brand"><img class="logo" src="img/logo/logo-192.png" alt=""><span>Atelier <b>3D</b></span></div>
   <div class="menu">
-    <button id="btn-file" class="ghost" data-title="Fichier" data-help="Nouveau projet, ouvrir ou enregistrer ton travail. Ton travail est aussi gardé automatiquement dans ce navigateur.">📁 Fichier ▾</button>
+    <button id="btn-file" class="ghost" data-title="Fichier" data-help="Nouveau projet, ouvrir ou enregistrer ton travail. Ton travail est aussi gardé automatiquement dans ce navigateur."><i data-ic="folder"></i> Fichier <i data-ic="chevron"></i></button>
     <div id="file-pop" class="menu-pop" hidden>
-      <button id="btn-new">📄 Nouveau projet</button>
-      <button id="btn-open">📂 Ouvrir un projet…</button>
-      <button id="btn-save">💾 Enregistrer sur l’ordinateur</button>
+      <button id="btn-new"><i data-ic="new"></i> Nouveau projet</button>
+      <button id="btn-open"><i data-ic="open"></i> Ouvrir un projet…</button>
+      <button id="btn-save"><i data-ic="save"></i> Enregistrer sur l’ordinateur</button>
     </div>
   </div>
   <input id="proj-name" value="mon-objet" aria-label="Nom du projet" data-title="Nom du projet" data-help="Ce nom sera utilisé pour les fichiers que tu enregistres ou télécharges.">
   <input type="file" id="file-open" accept=".atelier3d,.json" hidden>
   <div class="undo">
-    <button id="btn-undo" class="icon" data-title="Annuler (Ctrl + Z)" data-help="Revenir en arrière d’une action." aria-label="Annuler">↶</button>
-    <button id="btn-redo" class="icon" data-title="Rétablir (Ctrl + Y)" data-help="Refaire l’action annulée." aria-label="Rétablir">↷</button>
+    <button id="btn-undo" class="icon" data-title="Annuler (Ctrl + Z)" data-help="Revenir en arrière d’une action." aria-label="Annuler"><i data-ic="undo"></i></button>
+    <button id="btn-redo" class="icon" data-title="Rétablir (Ctrl + Y)" data-help="Refaire l’action annulée." aria-label="Rétablir"><i data-ic="redo"></i></button>
   </div>
   <span class="grow"></span>
-  <button id="btn-missions" class="soft" data-title="Projets guidés" data-help="Choisis un projet : l’assistant te guide étape par étape et coche ce que tu as réussi.">🎯 Projets guidés</button>
-  <button id="btn-help" class="icon" data-title="Aide" data-help="Le guide complet : souris, formes, trous, perçage, boîte, silhouette, impression." aria-label="Aide">?</button>
+  <button id="btn-missions" class="soft" data-title="Projets guidés" data-help="Choisis un projet : l’assistant te guide étape par étape et coche ce que tu as réussi."><i data-ic="target"></i> Projets guidés</button>
+  <button id="btn-help" class="icon" data-title="Aide" data-help="Le guide complet : souris, formes, trous, perçage, boîte, silhouette, impression." aria-label="Aide"><i data-ic="help"></i></button>
   <div class="modeswitch" role="group" aria-label="Mode">
-    <button id="btn-edit" class="on" data-title="✏️ Modifier" data-help="Le mode normal : tu vois les trous en rouge et tu peux tout déplacer.">✏️ Modifier</button>
-    <button id="btn-preview" data-title="👁 Aperçu final" data-help="Montre ton objet tel qu’il sera imprimé : les trous creusent vraiment la matière.">👁 Aperçu final</button>
+    <button id="btn-edit" class="on" data-title="✏️ Modifier" data-help="Le mode normal : tu vois les trous en rouge et tu peux tout déplacer."><i data-ic="pencil"></i> Modifier</button>
+    <button id="btn-preview" data-title="👁 Aperçu final" data-help="Montre ton objet tel qu’il sera imprimé : les trous creusent vraiment la matière."><i data-ic="eye"></i> Aperçu final</button>
   </div>
-  <button id="btn-export" class="primary" data-title="Télécharger" data-help="Fabrique le fichier STL ou OBJ pour l’imprimante 3D, après une vérification.">⬇ Télécharger</button>
+  <button id="btn-export" class="primary" data-title="Télécharger" data-help="Fabrique le fichier STL ou OBJ pour l’imprimante 3D, après une vérification."><i data-ic="download"></i> Télécharger</button>
 </header>
 
 <main>
@@ -117,11 +117,11 @@
       </div>
     </div>
     <div id="viewbar">
-      <button data-view="home" data-title="Vue d’ensemble" data-help="Revenir à la vue de départ.">🏠</button>
+      <button data-view="home" data-title="Vue d’ensemble" data-help="Revenir à la vue de départ."><i data-ic="home"></i></button>
       <button data-view="top" data-title="Vue de dessus" data-help="Regarder le plateau d’en haut.">Dessus</button>
       <button data-view="front" data-title="Vue de face" data-help="Regarder depuis l’avant.">Face</button>
       <button data-view="side" data-title="Vue de côté" data-help="Regarder depuis la droite.">Côté</button>
-      <button data-view="frame" data-title="Cadrer" data-help="Zoomer sur ce qui est sélectionné.">🔍 Cadrer</button>
+      <button data-view="frame" data-title="Cadrer" data-help="Zoomer sur ce qui est sélectionné."><i data-ic="frame"></i> Cadrer</button>
       <span class="vsep"></span>
       <button id="btn-xray" class="toggle" data-title="Rayons X" data-help="Rend les pièces transparentes pour voir ce qu’il y a dedans (composants dans une boîte, trous cachés)."><img class="ki" src="img/outils/kind-ghost.png" alt=""> Rayons X</button>
       <label data-title="Grille" data-help="De combien l’objet avance quand tu le fais glisser ou avec les flèches.">Grille
@@ -191,7 +191,7 @@
       <label>Taille du pinceau<input id="sil-size" type="range" min="2" max="70" value="16"></label>
       <label class="chk" data-title="Symétrie" data-help="Ce que tu dessines d’un côté apparaît aussi de l’autre côté, comme dans un miroir."><input type="checkbox" id="sil-sym"> <img src="img/dessin/symmetry.png" alt=""> Symétrie</label>
       <button id="sil-undo"><img src="img/dessin/undo.png" alt=""> Annuler</button>
-      <button id="sil-clear" class="danger">🗑 Tout effacer</button>
+      <button id="sil-clear" class="danger"><i data-ic="trash"></i> Tout effacer</button>
       <hr>
       <button id="sil-import" data-title="Importer une image" data-help="Une photo, un dessin scanné, une image trouvée… L’image est transformée en noir et blanc."><img src="img/dessin/image.png" alt=""> Importer une image</button>
       <input type="file" id="sil-file" accept="image/*" hidden>
@@ -214,7 +214,7 @@
 
 <!-- Télécharger -->
 <dialog id="dlg-export" class="dlg">
-  <h2>⬇ Télécharger pour l’imprimante</h2>
+  <h2><i data-ic="download"></i> Télécharger pour l’imprimante</h2>
   <div id="exp-checks" class="checks"></div>
   <div class="exp-grid">
     <fieldset><legend>Quoi ?</legend>
@@ -225,12 +225,12 @@
       <label data-title="OBJ" data-help="Un format accepté par la plupart des logiciels 3D."><input type="radio" name="exp-fmt" value="obj"> OBJ</label></fieldset>
   </div>
   <label class="num"><span>Nom du fichier</span><input id="exp-name"></label>
-  <div class="dlg-actions"><button data-close class="ghost">Annuler</button><button id="exp-go" class="primary">⬇ Télécharger</button></div>
+  <div class="dlg-actions"><button data-close class="ghost">Annuler</button><button id="exp-go" class="primary"><i data-ic="download"></i> Télécharger</button></div>
 </dialog>
 
 <!-- Projets guidés -->
 <dialog id="dlg-missions" class="dlg wide">
-  <h2>🎯 Projets guidés</h2>
+  <h2><i data-ic="target"></i> Projets guidés</h2>
   <p class="lead">Choisis un projet : l’assistant te guide étape par étape et coche tout seul ce que tu as réussi.</p>
   <div id="mission-list" class="mcards"></div>
   <div class="dlg-actions"><button data-close class="ghost">Fermer</button></div>
@@ -238,7 +238,7 @@
 
 <!-- Guide -->
 <dialog id="dlg-help" class="dlg wide">
-  <h2>❓ Guide de l’Atelier 3D</h2>
+  <h2><i data-ic="help"></i> Guide de l’Atelier 3D</h2>
   <div class="guide"><nav id="guide-tabs"></nav><article id="guide-body"></article></div>
   <div class="dlg-actions"><button data-close class="primary">J’ai compris</button></div>
 </dialog>

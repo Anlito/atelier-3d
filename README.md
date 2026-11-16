@@ -14,7 +14,7 @@ On y fabrique des objets à imprimer en 3D, téléchargés en **STL** ou **OBJ**
   - **Boîte** avec couvercle emboîtable, à partir des dimensions intérieures.
   - **Silhouette** : un dessin ou une image devient une pièce plate (théâtre d'ombre).
 - **Composants repères** : Arduino Uno, micro:bit, boutons, LED, servo, capteur ultrason, piles…
-- **Projets guidés** qui se cochent tout seuls : découverte, théâtre d'ombre, jeu Simon, déco de robot, escape game.
+- **Projets guidés** qui se cochent tout seuls : découverte, théâtre d'ombre, jeu Simon, déco de robot, escape game, projet libre.
 - **Aperçu final**, vérification avant impression, téléchargement STL / OBJ, sauvegarde automatique dans le navigateur et fichiers projet `.atelier3d`.
 
 Tout fonctionne dans le navigateur : aucune installation, aucun compte, aucune donnée envoyée.
@@ -38,6 +38,7 @@ puis ouvrir http://localhost:8765
 | `js/shapes.js` | fabrication des formes et opérations booléennes (three-bvh-csg) |
 | `js/silhouette.js` | atelier Silhouette (dessin → contours → pièce) |
 | `js/help.js` | textes d'aide, perçages tout prêts, composants, projets guidés |
+| `js/icons.js` | petites icônes au trait des boutons d'action |
 | `img/` | icônes et mascotte ; `img/planches/` = planches d'origine |
 | `tools/decoupe.html` | outil qui découpe les planches en icônes (`node tools/serveur-decoupe.mjs`) |
 | `demande-visuels-chatgpt.md` | le brief utilisé pour générer les visuels |

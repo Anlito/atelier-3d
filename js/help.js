@@ -126,6 +126,19 @@ export const MISSIONS = [
       { t: 'Aperçu final puis téléchargement', h: 'Vérifie la gravure avec l’aperçu final, puis télécharge.', sel: '#btn-export', ok: c => c.ev.has('export') },
     ],
   },
+  {
+    id: 'libre', icon: '🖨️', title: 'Mon projet libre', desc: 'Pour ton propre objet : les bonnes étapes, de l’idée au fichier pour l’imprimante.',
+    steps: [
+      { t: 'Dessine ton objet sur papier et note ses mesures', h: 'Une esquisse avec les mesures en millimètres (prends une règle !). Quand c’est fait, clique sur « Passer ».', optional: true, ok: () => false },
+      { t: 'Pose les formes principales', h: 'Assemble au moins deux formes (colonne de gauche) ou utilise un outil magique : Boîte, Silhouette.', ok: c => solids(c).length >= 2 || c.objs.some(o => ['box', 'silhouette'].includes(o.type)) },
+      { t: 'Ajoute un trou ou un perçage', h: 'Une forme en mode « Trou », ou l’outil « Percer » pour une LED, une vis, une ficelle…', sel: '#tool-drill', ok: c => holes(c).length > 0 },
+      { t: 'Vérifie que rien ne flotte', h: 'Chaque pièce doit être posée sur le plateau ou sur une autre pièce. Sélectionne-la et clique « Poser » si Pixel affiche un avertissement.',
+        ok: c => solids(c).length > 0 && solids(c).every(s => c.box(s).min.y <= 0.1 || solids(c).some(o => o !== s && c.touch(o, s))) },
+      { t: 'Regarde l’aperçu final', h: 'Le bouton « Aperçu final » montre ce que l’imprimante va fabriquer.', sel: '#btn-preview', ok: c => c.ev.has('preview') },
+      { t: 'Enregistre ton projet', h: 'Fichier → « Enregistrer sur l’ordinateur » : tu pourras le reprendre ou le rendre au professeur.', sel: '#btn-file', ok: c => c.ev.has('save') },
+      { t: 'Télécharge le fichier pour l’imprimante', h: 'Bouton « Télécharger » en haut à droite, format STL.', sel: '#btn-export', ok: c => c.ev.has('export') },
+    ],
+  },
 ];
 
 /* ---------- Guide complet ---------- */

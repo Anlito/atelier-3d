@@ -267,7 +267,6 @@ body.previewing #view::after { content: '👁 Aperçu final : voici ce qui sera 
 
 @media (max-width: 1100px) {
   .brand > span:last-child, #topbar #btn-missions { font-size: 0; }
-  #btn-missions::before { content: '🎯'; font-size: 16px; }
 }
 #mousehint { top: 12px; right: 12px; bottom: auto; }
 body.previewing #mousehint, body.drilling #mousehint { display: none; }
@@ -302,3 +301,18 @@ img.m-ic { width: 24px; height: 24px; vertical-align: -6px; }
 .dp-title img { width: 24px; height: 24px; vertical-align: -6px; }
 .sil-tools button img, .sil-tools label img { width: 22px; height: 22px; vertical-align: -5px; }
 .sil-tools button { display: flex; align-items: center; gap: 6px; }
+
+/* ================= Icônes au trait ================= */
+svg.ico { width: 18px; height: 18px; vertical-align: -4px; flex: none; }
+button .ico + *, button > .ico { pointer-events: none; }
+.undo .ico, #btn-help .ico { width: 20px; height: 20px; vertical-align: -5px; }
+#btn-help { display: inline-grid; place-items: center; }
+#btn-file .ico:last-child { width: 14px; height: 14px; vertical-align: -2px; margin-left: -2px; }
+#ctxbar button .ico { width: 19px; height: 19px; }
+.rot button .ico { width: 18px; height: 18px; }
+.dlg h2 .ico { width: 26px; height: 26px; vertical-align: -5px; color: var(--accent); }
+#props summary .ico { width: 16px; height: 16px; vertical-align: -3px; color: var(--muted); }
+.menu-pop button .ico { color: var(--muted); margin-right: 4px; }
+.acts button, #props .seg button, .rot button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+/* L'icône Repère (cube en pointillés) : plus contrastée pour rester lisible en petit */
+img[src$="kind-ghost.png"] { filter: brightness(.55) contrast(1.7); }

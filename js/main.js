@@ -6,6 +6,7 @@ import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { buildGeometry, combine, setFont, hasFont, geoStore, clearCache } from './shapes.js';
 import { initSilhouette, openSilhouette } from './silhouette.js';
 import * as H from './help.js';
+import { ic, hydrateIcons } from './icons.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -203,10 +204,10 @@ function renderCtxbar() {
   if (!sel.length) { el.innerHTML = ''; return; }
   if (sel.length > 1) {
     el.innerHTML = `<span class="cb-label">${sel.length} objets</span>
-      <button data-act="merge" class="primary" data-title="Fusionner" data-help="Colle toutes les pièces sélectionnées en une seule. Les trous sélectionnés creusent la matière.">🔗 Fusionner</button>
-      <button data-act="align:x" data-title="Centrer ↔" data-help="Met les centres sur la même ligne gauche-droite.">⇔</button>
-      <button data-act="align:z" data-title="Centrer ↕" data-help="Met les centres sur la même ligne avant-arrière.">⇕</button>
-      <button data-act="del" class="danger" data-title="Supprimer" data-help="Supprime les objets sélectionnés (Ctrl + Z pour les récupérer).">🗑</button>`;
+      <button data-act="merge" class="primary" data-title="Fusionner" data-help="Colle toutes les pièces sélectionnées en une seule. Les trous sélectionnés creusent la matière.">${ic('merge')} Fusionner</button>
+      <button data-act="align:x" data-title="Centrer ↔" data-help="Met les centres sur la même ligne gauche-droite.">${ic('alignx')}</button>
+      <button data-act="align:z" data-title="Centrer ↕" data-help="Met les centres sur la même ligne avant-arrière.">${ic('alignz')}</button>
+      <button data-act="del" class="danger" data-title="Supprimer" data-help="Supprime les objets sélectionnés (Ctrl + Z pour les récupérer).">${ic('trash')}</button>`;
     return;
   }
   const o = sel[0];
@@ -214,11 +215,11 @@ function renderCtxbar() {
       <button data-act="kind:solid" class="${o.kind === 'solid' ? 'on' : ''}" data-title="🧱 Matière" data-help="Sera imprimé en plastique. (touche S)">${KI.solid}Matière</button>
       <button data-act="kind:hole" class="${o.kind === 'hole' ? 'on' : ''}" data-title="🕳️ Trou" data-help="Creuse toutes les pièces qu’il traverse. (touche H)">${KI.hole}Trou</button>
       <button data-act="kind:ghost" class="${o.kind === 'ghost' ? 'on' : ''}" data-title="👻 Repère" data-help="N’est jamais imprimé : sert à mesurer ou vérifier que tout rentre.">${KI.ghost}</button></div>
-    <button data-act="drop" data-title="⬇ Poser (D)" data-help="Fait descendre l’objet sur ce qu’il y a en dessous : le plateau ou une autre pièce.">⬇</button>
-    <button data-act="rot:y:1" data-title="⟲ Tourner" data-help="Tourne l’objet à plat (l’angle se règle dans Propriétés).">⟲</button>
-    <button data-act="dup" data-title="⧉ Dupliquer (Ctrl + D)" data-help="Fait une copie juste à côté.">⧉</button>
+    <button data-act="drop" data-title="⬇ Poser (D)" data-help="Fait descendre l’objet sur ce qu’il y a en dessous : le plateau ou une autre pièce.">${ic('drop')}</button>
+    <button data-act="rot:y:1" data-title="⟲ Tourner" data-help="Tourne l’objet à plat (l’angle se règle dans Propriétés).">${ic('rotl')}</button>
+    <button data-act="dup" data-title="⧉ Dupliquer (Ctrl + D)" data-help="Fait une copie juste à côté.">${ic('copy')}</button>
     ${o.kind === 'solid' ? `<button data-act="drill" data-title="🔩 Percer" data-help="Ouvre l’outil Percer pour faire un trou dans cette pièce."><img class="ki" src="img/outils/drill.png" alt=""></button>` : ''}
-    <button data-act="del" class="danger" data-title="🗑 Supprimer (Suppr)" data-help="Supprime l’objet. Ctrl + Z pour le récupérer.">🗑</button>`;
+    <button data-act="del" class="danger" data-title="🗑 Supprimer (Suppr)" data-help="Supprime l’objet. Ctrl + Z pour le récupérer.">${ic('trash')}</button>`;
 }
 function cachedBox(o) {
   const k = o.mesh.geometry.uuid + o.mesh.matrixWorld.elements.join(',');
@@ -458,7 +459,7 @@ function typeParams(o) {
     case 'box': return `<h4>Boîte</h4>${num('wall', 'Épaisseur des parois', p.wall ?? 2, 'Parois et fond. 2 mm, c’est solide.')}
       <p class="muted small">Intérieur : ${r2(o.size.x - 2 * p.wall)} × ${r2(o.size.z - 2 * p.wall)} × ${r2(o.size.y - p.wall)} mm. Les dimensions ci-dessous sont celles de l’extérieur.</p>`;
     case 'lid': return `<h4>Couvercle</h4>${num('clr', 'Jeu (mm)', p.clr ?? 0.3, 'Espace laissé pour que le couvercle rentre sans forcer. Trop serré ? Mets 0,4 ou 0,5.')}`;
-    case 'silhouette': return `<button class="wide" data-act="edit-sil">✏️ Modifier le dessin</button>`;
+    case 'silhouette': return `<button class="wide" data-act="edit-sil">${ic('pencil')} Modifier le dessin</button>`;
     default: return '';
   }
 }
@@ -469,14 +470,14 @@ function renderProps() {
   if (!sel.length) { el.innerHTML = `<h3>Propriétés</h3><p class="muted">Sélectionne un objet pour voir et changer ses mesures.</p>`; return; }
   if (sel.length > 1) {
     el.innerHTML = `<h3>${sel.length} objets sélectionnés</h3>
-      <button id="btn-merge" class="primary wide" data-act="merge" data-title="Fusionner" data-help="Colle toutes les pièces sélectionnées en une seule. Les trous sélectionnés creusent la matière.">🔗 Fusionner en une pièce</button>
+      <button id="btn-merge" class="primary wide" data-act="merge" data-title="Fusionner" data-help="Colle toutes les pièces sélectionnées en une seule. Les trous sélectionnés creusent la matière.">${ic('merge')} Fusionner en une pièce</button>
       <h4>Aligner</h4><div class="acts">
-      <button data-act="align:x" data-title="Centrer ↔" data-help="Met les centres sur la même ligne gauche-droite.">Centrer ↔</button>
-      <button data-act="align:z" data-title="Centrer ↕" data-help="Met les centres sur la même ligne avant-arrière.">Centrer ↕</button>
-      <button data-act="align:y" data-title="Même bas" data-help="Met le bas de tous les objets à la même hauteur que le plus bas.">Même bas</button></div>
+      <button data-act="align:x" data-title="Centrer ↔" data-help="Met les centres sur la même ligne gauche-droite.">${ic('alignx')} Centrer ↔</button>
+      <button data-act="align:z" data-title="Centrer ↕" data-help="Met les centres sur la même ligne avant-arrière.">${ic('alignz')} Centrer ↕</button>
+      <button data-act="align:y" data-title="Même bas" data-help="Met le bas de tous les objets à la même hauteur que le plus bas.">${ic('alignb')} Même bas</button></div>
       <h4>Rôle de tous</h4><div class="seg">
       <button data-act="kind:solid">${KI.solid}Matière</button><button data-act="kind:hole">${KI.hole}Trou</button><button data-act="kind:ghost">${KI.ghost}Repère</button></div>
-      <div class="acts"><button data-act="dup">⧉ Dupliquer</button><button data-act="del" class="danger">🗑 Supprimer</button></div>`;
+      <div class="acts"><button data-act="dup">${ic('copy')} Dupliquer</button><button data-act="del" class="danger">${ic('trash')} Supprimer</button></div>`;
     return;
   }
   const o = sel[0], b = worldBox(o);
@@ -492,21 +493,21 @@ function renderProps() {
     <h4>Dimensions <small>en mm</small></h4>
     <div class="row3">${num('sx', 'Largeur', o.size.x, 'Taille de gauche à droite.')}${num('sy', 'Profondeur', o.size.z, 'Taille de l’avant vers l’arrière.')}${num('sz', 'Hauteur', o.size.y, 'Taille de bas en haut.')}</div>
     <label class="chk" data-title="Garder les proportions" data-help="Si c’est coché, changer une mesure agrandit (ou réduit) tout l’objet sans le déformer."><input type="checkbox" id="f-lock" ${state.lock ? 'checked' : ''}> Garder les proportions</label>
-    <details data-sec="pos" ${openSecs.has('pos') ? 'open' : ''}><summary>📍 Position précise <small>en mm</small></summary>
+    <details data-sec="pos" ${openSecs.has('pos') ? 'open' : ''}><summary>${ic('move')} Position précise <small>en mm</small></summary>
     <div class="row3">${num('px', 'X ↔', o.pos.x, 'Position de gauche à droite (0 = centre du plateau).')}${num('py', 'Y ↕', -o.pos.z, 'Position de l’avant vers l’arrière (0 = centre du plateau).')}${num('pz', 'Z ↑', b.min.y, 'Hauteur du BAS de l’objet au-dessus du plateau. 0 = posé sur le plateau.')}</div>
     </details>
-    <details data-sec="rot" ${openSecs.has('rot') ? 'open' : ''}><summary>🔄 Tourner</summary>
+    <details data-sec="rot" ${openSecs.has('rot') ? 'open' : ''}><summary>${ic('rotl')} Tourner</summary>
     <label class="chk">Angle : <select id="f-rotstep">${[90, 45, 15, 5].map(a => `<option ${a === state.rotStep ? 'selected' : ''}>${a}</option>`).join('')}</select> °</label>
     <div class="rot">
-      <span>À plat</span><button data-act="rot:y:1" data-title="Tourner à plat" data-help="Tourne l’objet sur lui-même, comme une toupie.">⟲</button><button data-act="rot:y:-1">⟳</button>
-      <span>Vers l’avant</span><button data-act="rot:x:1" data-title="Basculer" data-help="Fait basculer l’objet vers l’avant ou vers l’arrière.">⤵</button><button data-act="rot:x:-1">⤴</button>
-      <span>Sur le côté</span><button data-act="rot:z:1" data-title="Coucher sur le côté" data-help="Fait basculer l’objet vers la gauche ou vers la droite.">↶</button><button data-act="rot:z:-1">↷</button>
+      <span>À plat</span><button data-act="rot:y:1" data-title="Tourner à plat" data-help="Tourne l’objet sur lui-même, comme une toupie.">${ic('rotl')}</button><button data-act="rot:y:-1">${ic('rotr')}</button>
+      <span>Vers l’avant</span><button data-act="rot:x:1" data-title="Basculer" data-help="Fait basculer l’objet vers l’avant ou vers l’arrière.">${ic('rotl')}</button><button data-act="rot:x:-1">${ic('rotr')}</button>
+      <span>Sur le côté</span><button data-act="rot:z:1" data-title="Coucher sur le côté" data-help="Fait basculer l’objet vers la gauche ou vers la droite.">${ic('rotl')}</button><button data-act="rot:z:-1">${ic('rotr')}</button>
     </div></details>
     <div class="acts">
-      <button data-act="drop" data-title="Poser (D)" data-help="Fait descendre l’objet sur ce qu’il y a en dessous : le plateau ou une autre pièce.">⬇ Poser</button>
-      <button data-act="dup" data-title="Dupliquer (Ctrl + D)" data-help="Fait une copie juste à côté.">⧉ Dupliquer</button>
-      <button data-act="mirror" data-title="Miroir" data-help="Retourne l’objet comme dans un miroir (gauche ↔ droite). Utile pour faire la paire : bras gauche et bras droit.">⇋ Miroir</button>
-      <button data-act="del" class="danger" data-title="Supprimer (Suppr)" data-help="Supprime l’objet. Ctrl + Z pour le récupérer.">🗑 Supprimer</button>
+      <button data-act="drop" data-title="Poser (D)" data-help="Fait descendre l’objet sur ce qu’il y a en dessous : le plateau ou une autre pièce.">${ic('drop')} Poser</button>
+      <button data-act="dup" data-title="Dupliquer (Ctrl + D)" data-help="Fait une copie juste à côté.">${ic('copy')} Dupliquer</button>
+      <button data-act="mirror" data-title="Miroir" data-help="Retourne l’objet comme dans un miroir (gauche ↔ droite). Utile pour faire la paire : bras gauche et bras droit.">${ic('mirror')} Miroir</button>
+      <button data-act="del" class="danger" data-title="Supprimer (Suppr)" data-help="Supprime l’objet. Ctrl + Z pour le récupérer.">${ic('trash')} Supprimer</button>
     </div>`;
 }
 $('#props').addEventListener('change', e => {
@@ -908,6 +909,7 @@ $('#btn-new').addEventListener('click', () => {
 $('#btn-save').addEventListener('click', () => {
   const name = ($('#proj-name').value.trim() || 'mon-objet').replace(/[\\/:*?"<>|]/g, '-');
   download(new Blob([JSON.stringify(projectData())], { type: 'application/json' }), `${name}.atelier3d`);
+  emit('save');
   toast(`💾 Projet enregistré : <b>${name}.atelier3d</b> (dossier Téléchargements). Pour le reprendre : « Ouvrir ».`);
 });
 $('#btn-open').addEventListener('click', () => $('#file-open').click());
@@ -948,7 +950,7 @@ window.addEventListener('keydown', e => {
 });
 
 /* ================= Démarrage ================= */
-initSilhouette(); initDrillPanel(); initBoxDialog();
+hydrateIcons(); initSilhouette(); initDrillPanel(); initBoxDialog();
 $('#comp-list').innerHTML = H.COMPONENTS.map(c => `<button data-comp="${c.k}" data-title="${c.name} (repère)" data-help="${esc(c.help)} Il ne sera pas imprimé."><img src="img/composants/${c.k}.png" alt="">${c.name}</button>`).join('');
 $$('[data-comp]').forEach(b => b.addEventListener('click', () => addComponent(b.dataset.comp)));
 
