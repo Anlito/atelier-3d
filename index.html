@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atelier 3D</title>
+<link rel="icon" type="image/png" sizes="32x32" href="img/logo/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="img/logo/favicon-64.png">
+<link rel="apple-touch-icon" href="img/logo/logo-192.png">
+<meta name="description" content="Modéliser simplement des objets pour l'impression 3D, avec un assistant qui explique tout.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.7.3/build/index.module.js",
+  "three-bvh-csg": "https://cdn.jsdelivr.net/npm/three-bvh-csg@0.0.16/build/index.module.js"
+} }
+</script>
+</head>
+<body>
+<header id="topbar">
+  <div class="brand"><img class="logo" src="img/logo/logo-192.png" alt=""><span>Atelier <b>3D</b></span></div>
+  <div class="menu">
+    <button id="btn-file" class="ghost" data-title="Fichier" data-help="Nouveau projet, ouvrir ou enregistrer ton travail. Ton travail est aussi gardé automatiquement dans ce navigateur.">📁 Fichier ▾</button>
+    <div id="file-pop" class="menu-pop" hidden>
+      <button id="btn-new">📄 Nouveau projet</button>
+      <button id="btn-open">📂 Ouvrir un projet…</button>
+      <button id="btn-save">💾 Enregistrer sur l’ordinateur</button>
+    </div>
+  </div>
+  <input id="proj-name" value="mon-objet" aria-label="Nom du projet" data-title="Nom du projet" data-help="Ce nom sera utilisé pour les fichiers que tu enregistres ou télécharges.">
+  <input type="file" id="file-open" accept=".atelier3d,.json" hidden>
+  <div class="undo">
+    <button id="btn-undo" class="icon" data-title="Annuler (Ctrl + Z)" data-help="Revenir en arrière d’une action." aria-label="Annuler">↶</button>
+    <button id="btn-redo" class="icon" data-title="Rétablir (Ctrl + Y)" data-help="Refaire l’action annulée." aria-label="Rétablir">↷</button>
+  </div>
+  <span class="grow"></span>
+  <button id="btn-missions" class="soft" data-title="Projets guidés" data-help="Choisis un projet : l’assistant te guide étape par étape et coche ce que tu as réussi.">🎯 Projets guidés</button>
+  <button id="btn-help" class="icon" data-title="Aide" data-help="Le guide complet : souris, formes, trous, perçage, boîte, silhouette, impression." aria-label="Aide">?</button>
+  <div class="modeswitch" role="group" aria-label="Mode">
+    <button id="btn-edit" class="on" data-title="✏️ Modifier" data-help="Le mode normal : tu vois les trous en rouge et tu peux tout déplacer.">✏️ Modifier</button>
+    <button id="btn-preview" data-title="👁 Aperçu final" data-help="Montre ton objet tel qu’il sera imprimé : les trous creusent vraiment la matière.">👁 Aperçu final</button>
+  </div>
+  <button id="btn-export" class="primary" data-title="Télécharger" data-help="Fabrique le fichier STL ou OBJ pour l’imprimante 3D, après une vérification.">⬇ Télécharger</button>
+</header>
+
+<main>
+  <aside id="left">
+    <div class="magic">
+      <button id="tool-drill" data-title="🔩 Percer (P)" data-help="Choisis ce que tu veux faire passer (LED, bouton, câble USB, vis…) puis clique sur une face : le trou se fait tout seul, juste de l’épaisseur de la paroi."><img src="img/outils/drill.png" alt=""><span>Percer<small>LED, bouton, USB…</small></span></button>
+      <button id="tool-box" data-title="📦 Boîte" data-help="Donne la taille intérieure : l’assistant fabrique la boîte et son couvercle qui s’emboîte."><img src="img/outils/box.png" alt=""><span>Boîte<small>+ couvercle</small></span></button>
+      <button id="tool-silhouette" data-title="✂️ Silhouette" data-help="Dessine ou importe une image : elle devient une pièce plate. Idéal pour le théâtre d’ombre."><img src="img/outils/silhouette.png" alt=""><span>Silhouette<small>dessin → pièce</small></span></button>
+    </div>
+    <nav class="ltabs" role="tablist">
+      <button data-tab="shapes" class="on" role="tab">Formes</button>
+      <button data-tab="comps" role="tab" data-title="Composants" data-help="Des repères gris (cartes, boutons, piles…) pour vérifier que tout rentre. Ils ne sont jamais imprimés.">Composants</button>
+      <button data-tab="objs" role="tab" data-title="Mes objets" data-help="La liste de tout ce qui est sur le plateau. Clique sur un nom pour le sélectionner, même s’il est caché.">Objets <i id="obj-count">0</i></button>
+    </nav>
+    <div class="lpane" data-pane="shapes">
+    <div class="tools">
+      <button data-add="cube" data-title="Cube" data-help="Un pavé. Change ses 3 mesures pour faire une plaque, un mur, un socle…"><img src="img/formes/cube.png" alt="">Cube</button>
+      <button data-add="cylinder" data-title="Cylindre" data-help="Un cylindre. Change le nombre de côtés pour faire un prisme ou un hexagone. En Trou, il perce des trous ronds."><img src="img/formes/cylinder.png" alt="">Cylindre</button>
+      <button data-add="sphere" data-title="Sphère" data-help="Une boule."><img src="img/formes/sphere.png" alt="">Sphère</button>
+      <button data-add="hemisphere" data-title="Demi-sphère" data-help="Une demi-boule posée à plat : parfaite pour des yeux ou un dôme."><img src="img/formes/hemisphere.png" alt="">Demi-sphère</button>
+      <button data-add="cone" data-title="Cône" data-help="Un cône."><img src="img/formes/cone.png" alt="">Cône</button>
+      <button data-add="pyramid" data-title="Pyramide" data-help="Une pyramide à base carrée."><img src="img/formes/pyramid.png" alt="">Pyramide</button>
+      <button data-add="torus" data-title="Anneau" data-help="Un anneau (tore), comme un donut."><img src="img/formes/torus.png" alt="">Anneau</button>
+      <button data-add="tube" data-title="Tube" data-help="Un cylindre creux : règle l’épaisseur de sa paroi."><img src="img/formes/tube.png" alt="">Tube</button>
+      <button data-add="star" data-title="Étoile" data-help="Une étoile plate. Choisis le nombre de branches."><img src="img/formes/star.png" alt="">Étoile</button>
+      <button data-add="heart" data-title="Cœur" data-help="Un cœur plat."><img src="img/formes/heart.png" alt="">Cœur</button>
+      <button data-add="text" data-title="Texte" data-help="Des lettres en 3D. En Trou, le texte se grave dans une pièce."><img src="img/formes/text.png" alt="">Texte</button>
+    </div>
+    <p class="hint">Clique sur une forme : elle se pose sur le plateau. Mets-la en <b class="t-hole">Trou</b> pour qu’elle creuse.</p>
+    </div>
+    <div class="lpane" data-pane="comps" hidden>
+      <p class="hint">Ces repères gris ne sont <b>jamais imprimés</b>. Ils servent à vérifier que tes composants rentrent.</p>
+      <div id="comp-list" class="comps"></div>
+    </div>
+    <div class="lpane" data-pane="objs" hidden>
+      <ul id="outliner"></ul>
+    </div>
+  </aside>
+
+  <section id="view">
+    <div id="drill-panel" class="floating" hidden>
+      <div class="dp-title"><img src="img/outils/drill.png" alt=""> Percer : que veux-tu faire passer ?</div>
+      <select id="drill-preset" aria-label="Type de trou"></select>
+      <div class="dp-row">
+        <label id="drill-round">Diamètre <input id="drill-d" type="number" step="0.1" min="0.5"> mm</label>
+        <span id="drill-rect" hidden><label>Largeur <input id="drill-w" type="number" step="0.1"></label><label>Hauteur <input id="drill-h" type="number" step="0.1"></label> mm</span>
+      </div>
+      <div class="dp-row">
+        <label class="chk" data-title="Profondeur automatique" data-help="Le trou traverse exactement l’épaisseur de la paroi que tu cliques, sans percer ce qu’il y a derrière."><input id="drill-auto" type="checkbox" checked> Traverser la paroi (auto)</label>
+        <label>ou <input id="drill-depth" type="number" step="0.5" value="3" disabled> mm</label>
+      </div>
+      <div class="dp-row"><small id="drill-depth-info" class="muted">Survole une pièce…</small><button id="drill-done" class="primary">Terminer</button></div>
+    </div>
+    <div id="ctxbar" hidden></div>
+    <div id="dims" hidden>
+      <button class="dim" data-dim="sx" data-title="Largeur" data-help="Clique pour taper la largeur en mm."></button>
+      <button class="dim" data-dim="sy" data-title="Profondeur" data-help="Clique pour taper la profondeur en mm."></button>
+      <button class="dim" data-dim="sz" data-title="Hauteur" data-help="Clique pour taper la hauteur en mm."></button>
+      <button id="lift" data-title="⇕ Monter / descendre" data-help="Fais glisser vers le haut ou le bas pour soulever l’objet. Le nombre indique la hauteur de son bas au-dessus du plateau."></button>
+    </div>
+    <div id="empty" hidden>
+      <img class="e-bot" src="img/mascotte/neutral.png" alt="">
+      <h2>Que veux-tu fabriquer aujourd’hui ?</h2>
+      <p>Choisis un point de départ. L’assistant à droite t’explique tout au fur et à mesure.</p>
+      <div class="e-grid">
+        <button data-empty="mission"><img src="img/projets/decouverte.png" alt="">Suivre un projet guidé<small>Simon, théâtre d’ombre, robot, escape game…</small></button>
+        <button data-empty="cube"><img src="img/formes/cube.png" alt="">Partir d’une forme<small>Cube, cylindre, texte…</small></button>
+        <button data-empty="box"><img src="img/outils/box.png" alt="">Fabriquer une boîte<small>avec son couvercle</small></button>
+        <button data-empty="sil"><img src="img/outils/silhouette.png" alt="">Dessiner une silhouette<small>pièce plate de 2 mm</small></button>
+      </div>
+    </div>
+    <div id="viewbar">
+      <button data-view="home" data-title="Vue d’ensemble" data-help="Revenir à la vue de départ.">🏠</button>
+      <button data-view="top" data-title="Vue de dessus" data-help="Regarder le plateau d’en haut.">Dessus</button>
+      <button data-view="front" data-title="Vue de face" data-help="Regarder depuis l’avant.">Face</button>
+      <button data-view="side" data-title="Vue de côté" data-help="Regarder depuis la droite.">Côté</button>
+      <button data-view="frame" data-title="Cadrer" data-help="Zoomer sur ce qui est sélectionné.">🔍 Cadrer</button>
+      <span class="vsep"></span>
+      <button id="btn-xray" class="toggle" data-title="Rayons X" data-help="Rend les pièces transparentes pour voir ce qu’il y a dedans (composants dans une boîte, trous cachés)."><img class="ki" src="img/outils/kind-ghost.png" alt=""> Rayons X</button>
+      <label data-title="Grille" data-help="De combien l’objet avance quand tu le fais glisser ou avec les flèches.">Grille
+        <select id="grid-step"><option value="0.5">0,5 mm</option><option value="1" selected>1 mm</option><option value="2">2 mm</option><option value="5">5 mm</option><option value="10">10 mm</option></select></label>
+    </div>
+    <div id="mousehint">🖱️ Clic gauche dans le vide : tourner · Clic droit : glisser · Molette : zoomer</div>
+    <div id="busy" hidden><i></i><span>Calcul…</span></div>
+  </section>
+
+  <aside id="right">
+    <div id="assistant">
+      <div class="as-head"><img id="as-bot" class="bot" src="img/mascotte/neutral.png" alt=""> Pixel, ton assistant</div>
+      <div id="as-hover" hidden></div>
+      <div id="as-msg"></div>
+      <div id="as-warn"></div>
+      <div id="as-mission"></div>
+    </div>
+    <div id="props"></div>
+  </aside>
+</main>
+
+<div id="draginfo" hidden></div>
+<div id="toast" hidden></div>
+
+<!-- Assistant Boîte -->
+<dialog id="dlg-box" class="dlg">
+  <h2><img src="img/outils/box.png" alt=""> Assistant Boîte</h2>
+  <p class="lead">Indique la place dont tu as besoin <b>à l’intérieur</b>. L’assistant ajoute les parois, le fond et fabrique un couvercle qui s’emboîte.</p>
+  <div class="box-wrap">
+    <svg viewBox="0 0 200 130" class="schema" aria-hidden="true">
+      <rect x="20" y="30" width="160" height="90" fill="#bfdbfe" stroke="#1e40af" stroke-width="2"/>
+      <rect x="32" y="30" width="136" height="78" fill="#fff" stroke="#1e40af" stroke-width="1"/>
+      <rect x="14" y="8" width="172" height="10" fill="#fde68a" stroke="#b45309" stroke-width="1.5"/>
+      <rect x="34" y="18" width="10" height="16" fill="#fde68a" stroke="#b45309"/><rect x="156" y="18" width="10" height="16" fill="#fde68a" stroke="#b45309"/>
+      <text x="100" y="74" text-anchor="middle" font-size="12" fill="#1e3a8a">intérieur</text>
+      <text x="100" y="117" text-anchor="middle" font-size="9" fill="#1e3a8a">fond</text>
+      <text x="100" y="15.5" text-anchor="middle" font-size="8" fill="#92400e">couvercle</text>
+      <text x="26" y="80" font-size="8" fill="#1e3a8a" transform="rotate(-90 26 80)" text-anchor="middle">paroi</text>
+    </svg>
+    <div class="box-form">
+      <label>Modèle <select id="box-preset"></select></label>
+      <div class="row3">
+        <label class="num"><span>Largeur int.</span><input id="box-L" type="number" step="1"></label>
+        <label class="num"><span>Profondeur int.</span><input id="box-P" type="number" step="1"></label>
+        <label class="num"><span>Hauteur int.</span><input id="box-H" type="number" step="1"></label>
+      </div>
+      <div class="row3">
+        <label class="num" data-title="Épaisseur des parois" data-help="2 mm, c’est solide. 1,2 mm minimum."><span>Parois (mm)</span><input id="box-wall" type="number" step="0.2" value="2"></label>
+        <label class="num" data-title="Jeu du couvercle" data-help="Le petit espace pour que le couvercle rentre sans forcer. 0,3 mm en général."><span>Jeu (mm)</span><input id="box-clr" type="number" step="0.05" value="0.3"></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="box-lid" checked> Fabriquer un couvercle emboîtable</label>
+      <p id="box-info" class="info"></p>
+    </div>
+  </div>
+  <div class="dlg-actions"><button data-close class="ghost">Annuler</button><button id="box-ok" class="primary">Créer la boîte</button></div>
+</dialog>
+
+<!-- Atelier Silhouette -->
+<dialog id="dlg-sil" class="dlg wide">
+  <h2><img src="img/outils/silhouette.png" alt=""> Atelier Silhouette</h2>
+  <p class="lead">Dessine en <b>noir</b> ce qui sera en plastique. Le blanc à l’intérieur devient des trous (yeux, motifs…).</p>
+  <div class="sil-wrap">
+    <div class="sil-tools">
+      <button data-sil-tool="brush" class="on" data-title="Pinceau" data-help="Dessine en noir."><img src="img/dessin/brush.png" alt=""> Pinceau</button>
+      <button data-sil-tool="eraser" data-title="Gomme" data-help="Efface (dessine en blanc)."><img src="img/dessin/eraser.png" alt=""> Gomme</button>
+      <button data-sil-tool="fill" data-title="Pot de peinture" data-help="Clique à l’intérieur d’un contour fermé pour le remplir de noir."><img src="img/dessin/fill.png" alt=""> Remplir</button>
+      <label>Taille du pinceau<input id="sil-size" type="range" min="2" max="70" value="16"></label>
+      <label class="chk" data-title="Symétrie" data-help="Ce que tu dessines d’un côté apparaît aussi de l’autre côté, comme dans un miroir."><input type="checkbox" id="sil-sym"> <img src="img/dessin/symmetry.png" alt=""> Symétrie</label>
+      <button id="sil-undo"><img src="img/dessin/undo.png" alt=""> Annuler</button>
+      <button id="sil-clear" class="danger">🗑 Tout effacer</button>
+      <hr>
+      <button id="sil-import" data-title="Importer une image" data-help="Une photo, un dessin scanné, une image trouvée… L’image est transformée en noir et blanc."><img src="img/dessin/image.png" alt=""> Importer une image</button>
+      <input type="file" id="sil-file" accept="image/*" hidden>
+      <div id="sil-imgopts" hidden>
+        <label>Seuil noir / blanc<input id="sil-thr" type="range" min="10" max="245" value="128"></label>
+        <label class="chk"><input type="checkbox" id="sil-inv"> Inverser noir et blanc</label>
+      </div>
+    </div>
+    <canvas id="sil-canvas"></canvas>
+    <div class="sil-side">
+      <label class="num"><span>Hauteur du dessin (mm)</span><input id="sil-h" type="number" value="120" step="5"></label>
+      <label class="num"><span>Épaisseur (mm)</span><input id="sil-t" type="number" value="2" step="0.5"></label>
+      <label data-title="Lissage" data-help="Plus c’est lissé, plus les bords sont doux (et le fichier léger). Moins c’est lissé, plus les détails sont fidèles.">Lissage des bords<input id="sil-smooth" type="range" min="0.5" max="4" step="0.1" value="1.2"></label>
+      <p id="sil-info" class="info"></p>
+      <p id="sil-msg" class="bad"></p>
+    </div>
+  </div>
+  <div class="dlg-actions"><button id="sil-cancel" class="ghost">Annuler</button><button id="sil-ok" class="primary">✔ Créer la pièce 3D</button></div>
+</dialog>
+
+<!-- Télécharger -->
+<dialog id="dlg-export" class="dlg">
+  <h2>⬇ Télécharger pour l’imprimante</h2>
+  <div id="exp-checks" class="checks"></div>
+  <div class="exp-grid">
+    <fieldset><legend>Quoi ?</legend>
+      <label><input type="radio" name="exp-what" id="exp-all" checked> Tout le plateau</label>
+      <label><input type="radio" name="exp-what" id="exp-sel"> Seulement la sélection</label></fieldset>
+    <fieldset><legend>Format</legend>
+      <label data-title="STL" data-help="Le format le plus utilisé par les imprimantes 3D (Cura, PrusaSlicer, Bambu Studio…)."><input type="radio" name="exp-fmt" value="stl" checked> STL (conseillé)</label>
+      <label data-title="OBJ" data-help="Un format accepté par la plupart des logiciels 3D."><input type="radio" name="exp-fmt" value="obj"> OBJ</label></fieldset>
+  </div>
+  <label class="num"><span>Nom du fichier</span><input id="exp-name"></label>
+  <div class="dlg-actions"><button data-close class="ghost">Annuler</button><button id="exp-go" class="primary">⬇ Télécharger</button></div>
+</dialog>
+
+<!-- Projets guidés -->
+<dialog id="dlg-missions" class="dlg wide">
+  <h2>🎯 Projets guidés</h2>
+  <p class="lead">Choisis un projet : l’assistant te guide étape par étape et coche tout seul ce que tu as réussi.</p>
+  <div id="mission-list" class="mcards"></div>
+  <div class="dlg-actions"><button data-close class="ghost">Fermer</button></div>
+</dialog>
+
+<!-- Guide -->
+<dialog id="dlg-help" class="dlg wide">
+  <h2>❓ Guide de l’Atelier 3D</h2>
+  <div class="guide"><nav id="guide-tabs"></nav><article id="guide-body"></article></div>
+  <div class="dlg-actions"><button data-close class="primary">J’ai compris</button></div>
+</dialog>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

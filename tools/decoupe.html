@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Découpe des planches</title>
+<style>
+body { font-family: system-ui, sans-serif; margin: 16px; background: #f1f5f9; }
+#out { display: flex; flex-wrap: wrap; gap: 10px; }
+figure { margin: 0; width: 132px; text-align: center; font-size: 11px; }
+figure img { width: 128px; height: 128px; border-radius: 10px; background: conic-gradient(#e2e8f0 25%, #fff 0 50%, #e2e8f0 0 75%, #fff 0) 0 0 / 16px 16px; }
+figure.dark img { background: #1e293b; }
+h2 { width: 100%; margin: 12px 0 0; font-size: 15px; }
+</style></head>
+<body>
+<h1>Découpe des planches d'icônes</h1>
+<p id="log">…</p>
+<div id="out"></div>
+<script>
+// Chaque planche : grille, noms des cases (null = case vide), taille finale, seuil du fond blanc.
+const SHEETS = [
+  { src: 'formes', dir: 'formes', cols: 4, rows: 3, size: 256, names: ['cube', 'cylinder', 'sphere', 'hemisphere', 'cone', 'pyramid', 'torus', 'tube', 'star', 'heart', 'text', null] },
+  { src: 'outils', dir: 'outils', cols: 3, rows: 2, size: 256, names: ['drill', 'box', 'silhouette', 'kind-solid', 'kind-hole', 'kind-ghost'] },
+  { src: 'composants', dir: 'composants', cols: 4, rows: 3, size: 256, names: ['arduino', 'microbit', 'breadboard', 'pushbtn', 'arcade', 'led', 'buzzer', 'servo', 'hcsr04', 'bat9', 'aa4', null] },
+  { src: 'mascotte', dir: 'mascotte', cols: 3, rows: 2, size: 512, names: ['neutral', 'explain', 'point', 'bravo', 'warning', 'thinking'] },
+  { src: 'projets', dir: 'projets', cols: 3, rows: 2, size: 512, names: ['decouverte', 'ombre', 'simon', 'robot', 'escape', 'libre'] },
+  { src: 'dessin', dir: 'dessin', cols: 3, rows: 2, size: 256, names: ['brush', 'eraser', 'fill', 'image', 'symmetry', 'undo'] },
+  { src: 'arcade-bleu', dir: 'composants', cols: 1, rows: 1, size: 256, names: ['arcade-bleu'] },
+  { src: 'logo', dir: 'logo', cols: 1, rows: 1, sizes: [[1024, 'logo'], [512, 'logo-512'], [192, 'logo-192'], [64, 'favicon-64'], [32, 'favicon-32']], names: ['logo'], thr: 250, margin: 0.04 },
+];
+const T_FILL = 226, SAT = 14; // le fond = pixels clairs et peu colorés reliés au bord de l'image
+
+const load = src => new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = src; });
+
+function removeBackground(d, W, H, thr) {
+  const n = W * H, bg = new Uint8Array(n), q = new Int32Array(n);
+  let qh = 0, qt = 0;
+  const light = i => { const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2]; const mn = Math.min(r, g, b), mx = Math.max(r, g, b); return mn >= thr && mx - mn <= SAT; };
+  const push = i => { if (!bg[i] && light(i)) { bg[i] = 1; q[qt++] = i; } };
+  for (let x = 0; x < W; x++) { push(x); push((H - 1) * W + x); }
+  for (let y = 0; y < H; y++) { push(y * W); push(y * W + W - 1); }
+  while (qh < qt) {
+    const i = q[qh++], x = i % W;
+    if (x > 0) push(i - 1); if (x < W - 1) push(i + 1);
+    if (i >= W) push(i - W); if (i < n - W) push(i + W);
+  }
+  // Fond -> transparent. Les ombres grises deviennent une ombre noire translucide (comme posée sur du blanc).
+  for (let i = 0; i < n; i++) if (bg[i]) {
+    const v = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3;
+    const a = Math.max(0, 1 - v / 255) * 1.6;
+    d[i * 4] = 30; d[i * 4 + 1] = 41; d[i * 4 + 2] = 59; d[i * 4 + 3] = a < 0.04 ? 0 : Math.min(255, a * 255);
+  }
+  return bg;
+}
+
+function labelCells(d, W, H, cols, rows) {
+  // Regroupe les morceaux d'objet (pixels bien opaques) et les attribue à une case selon leur centre.
+  const n = W * H, lab = new Int32Array(n).fill(-1), cellOf = [], q = new Int32Array(n);
+  let id = 0;
+  for (let s = 0; s < n; s++) {
+    if (lab[s] !== -1 || d[s * 4 + 3] < 200) continue;
+    let qh = 0, qt = 0, minx = W, miny = H, maxx = 0, maxy = 0, cnt = 0;
+    lab[s] = id; q[qt++] = s;
+    while (qh < qt) {
+      const i = q[qh++], x = i % W, y = (i / W) | 0; cnt++;
+      if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const j = ny * W + nx; if (lab[j] === -1 && d[j * 4 + 3] >= 200) { lab[j] = id; q[qt++] = j; }
+      }
+    }
+    const cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
+    cellOf[id] = cnt < 150 ? -1 : Math.min(cols - 1, Math.floor(cx / (W / cols))) + cols * Math.min(rows - 1, Math.floor(cy / (H / rows)));
+    id++;
+  }
+  // chaque pixel -> sa case (les pixels translucides suivent la grille)
+  const cell = new Int8Array(n);
+  for (let i = 0; i < n; i++) {
+    if (d[i * 4 + 3] === 0) { cell[i] = -1; continue; }
+    cell[i] = lab[i] >= 0 ? cellOf[lab[i]] : Math.min(cols - 1, Math.floor((i % W) / (W / cols))) + cols * Math.min(rows - 1, Math.floor(((i / W) | 0) / (H / rows)));
+  }
+  return cell;
+}
+
+function extract(d, W, H, cell, k, margin) {
+  let minx = W, miny = H, maxx = -1, maxy = -1;
+  for (let i = 0; i < W * H; i++) if (cell[i] === k && d[i * 4 + 3] > 60) { const x = i % W, y = (i / W) | 0; if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y; }
+  if (maxx < 0) return null;
+  const pad = 6; minx = Math.max(0, minx - pad); miny = Math.max(0, miny - pad); maxx = Math.min(W - 1, maxx + pad); maxy = Math.min(H - 1, maxy + pad);
+  const w = maxx - minx + 1, h = maxy - miny + 1;
+  const side = Math.ceil(Math.max(w, h) / (1 - 2 * margin));
+  const c = document.createElement('canvas'); c.width = c.height = side;
+  const cx = c.getContext('2d'), img = cx.createImageData(side, side), o = img.data;
+  const ox = Math.floor((side - w) / 2), oy = Math.floor((side - h) / 2);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (miny + y) * W + minx + x; if (cell[i] !== k) continue;
+    const j = ((oy + y) * side + ox + x) * 4;
+    o[j] = d[i * 4]; o[j + 1] = d[i * 4 + 1]; o[j + 2] = d[i * 4 + 2]; o[j + 3] = d[i * 4 + 3];
+  }
+  cx.putImageData(img, 0, 0);
+  return c;
+}
+
+function resize(src, size) { // réduction par étapes pour garder de la netteté
+  let c = src;
+  while (c.width / 2 > size) { const n = document.createElement('canvas'); n.width = n.height = Math.round(c.width / 2); const g = n.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, n.width, n.height); c = n; }
+  const n = document.createElement('canvas'); n.width = n.height = size; const g = n.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, size, size);
+  return n;
+}
+
+async function save(path, canvas) {
+  const r = await fetch('/save?path=' + encodeURIComponent(path), { method: 'POST', body: canvas.toDataURL('image/png') });
+  if (!r.ok) throw new Error('Enregistrement refusé : ' + path);
+}
+
+async function run() {
+  const out = document.getElementById('out'), log = document.getElementById('log'), done = [];
+  for (const s of SHEETS) {
+    const img = await load('../img/planches/' + s.src + '.webp');
+    const W = img.naturalWidth, H = img.naturalHeight;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    const id = g.getImageData(0, 0, W, H), d = id.data;
+    removeBackground(d, W, H, s.thr || T_FILL);
+    const cell = labelCells(d, W, H, s.cols, s.rows);
+    out.insertAdjacentHTML('beforeend', `<h2>${s.src} (${W} × ${H})</h2>`);
+    for (let k = 0; k < s.names.length; k++) {
+      if (!s.names[k]) continue;
+      const crop = extract(d, W, H, cell, k, s.margin ?? 0.1);
+      if (!crop) { log.textContent = 'Case vide : ' + s.names[k]; continue; }
+      for (const [size, name] of (s.sizes || [[s.size, s.names[k]]])) {
+        const fin = resize(crop, size), path = `img/${s.dir}/${name}.png`;
+        await save(path, fin); done.push(path);
+        if (size >= 256 || s.sizes) out.insertAdjacentHTML('beforeend', `<figure><img src="${fin.toDataURL()}"><figcaption>${s.dir}/${name} · ${size}px</figcaption></figure>`);
+      }
+    }
+  }
+  log.textContent = `${done.length} fichiers enregistrés.`;
+  window.__done = done;
+}
+run().catch(e => { document.getElementById('log').textContent = 'Erreur : ' + e.message; console.error(e); });
+</script>
+</body></html>
