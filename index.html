@@ -99,6 +99,7 @@
       <div class="dp-row"><small id="drill-depth-info" class="muted">Survole une pièce…</small><button id="drill-done" class="primary">Terminer</button></div>
     </div>
     <div id="ctxbar" hidden></div>
+    <div id="handles" hidden></div>
     <div id="dims" hidden>
       <button class="dim" data-dim="sx" data-title="Largeur" data-help="Clique pour taper la largeur en mm."></button>
       <button class="dim" data-dim="sy" data-title="Profondeur" data-help="Clique pour taper la profondeur en mm."></button>
@@ -163,16 +164,20 @@
     </svg>
     <div class="box-form">
       <label>Modèle <select id="box-preset"></select></label>
+      <div class="box-shapes" id="box-shapes" role="radiogroup" aria-label="Forme de la boîte"></div>
+      <label class="num" id="box-r-wrap" hidden data-title="Rayon des coins" data-help="Plus le rayon est grand, plus les coins sont arrondis."><span>Rayon des coins (mm)</span><input id="box-r" type="number" step="1" value="8"></label>
       <div class="row3">
         <label class="num"><span>Largeur int.</span><input id="box-L" type="number" step="1"></label>
         <label class="num"><span>Profondeur int.</span><input id="box-P" type="number" step="1"></label>
-        <label class="num"><span>Hauteur int.</span><input id="box-H" type="number" step="1"></label>
+        <label class="num" data-title="Hauteur intérieure" data-help="La hauteur utile à l’intérieur de la boîte, sans le couvercle."><span>Hauteur int.</span><input id="box-H" type="number" step="1"></label>
       </div>
-      <div class="row3">
-        <label class="num" data-title="Épaisseur des parois" data-help="2 mm, c’est solide. 1,2 mm minimum."><span>Parois (mm)</span><input id="box-wall" type="number" step="0.2" value="2"></label>
+      <label class="num" data-title="Épaisseur des parois" data-help="2 mm, c’est solide. 1,2 mm minimum."><span>Parois (mm)</span><input id="box-wall" type="number" step="0.2" value="2"></label>
+      <label class="chk"><input type="checkbox" id="box-lid" checked> Fabriquer un couvercle emboîtable</label>
+      <div class="row3" id="box-lid-opts">
+        <label class="num" data-title="Hauteur du couvercle" data-help="0 = couvercle plat. Plus grand = le couvercle a des bords, la boîte se ferme comme deux moitiés (la hauteur totale = boîte + couvercle)."><span>Hauteur couvercle</span><input id="box-skirt" type="number" step="1" value="0" min="0"></label>
+        <label class="num" data-title="Rebord qui rentre" data-help="La partie du couvercle qui s’enfonce dans la boîte pour la tenir fermée. 5 mm en général."><span>Rebord qui rentre</span><input id="box-lip" type="number" step="1" value="5" min="0"></label>
         <label class="num" data-title="Jeu du couvercle" data-help="Le petit espace pour que le couvercle rentre sans forcer. 0,3 mm en général."><span>Jeu (mm)</span><input id="box-clr" type="number" step="0.05" value="0.3"></label>
       </div>
-      <label class="chk"><input type="checkbox" id="box-lid" checked> Fabriquer un couvercle emboîtable</label>
       <p id="box-info" class="info"></p>
     </div>
   </div>
@@ -226,6 +231,17 @@
   </div>
   <label class="num"><span>Nom du fichier</span><input id="exp-name"></label>
   <div class="dlg-actions"><button data-close class="ghost">Annuler</button><button id="exp-go" class="primary"><i data-ic="download"></i> Télécharger</button></div>
+</dialog>
+
+<!-- Enregistrer : où ranger le fichier -->
+<dialog id="dlg-save" class="dlg">
+  <h2><i data-ic="save"></i> Où enregistrer ?</h2>
+  <p class="lead">Tu vas enregistrer <b id="save-kind">ton projet</b>. Range-le dans le <b>dossier de ton équipe</b> :</p>
+  <ol class="crumbs" id="save-path"></ol>
+  <p class="info">Dans la fenêtre qui va s’ouvrir, clique sur <b>Bureau</b> (à gauche), puis ouvre les dossiers un par un, dans cet ordre. La prochaine fois, la fenêtre s’ouvrira directement au bon endroit.</p>
+  <p class="info bad" id="save-fallback" hidden>Ce navigateur ne permet pas de choisir le dossier : le fichier ira dans <b>Téléchargements</b>. Déplace-le ensuite dans le dossier de ton équipe (ou utilise Chrome ou Edge).</p>
+  <label class="num"><span>Nom du fichier</span><span class="save-name"><input id="save-name"><b id="save-ext">.atelier3d</b></span></label>
+  <div class="dlg-actions"><button data-close class="ghost">Annuler</button><button id="save-go" class="primary">Choisir l’emplacement…</button></div>
 </dialog>
 
 <!-- Projets guidés -->

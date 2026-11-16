@@ -1,12 +1,16 @@
 // Contenus pédagogiques : perçages tout prêts, composants, modèles de boîtes,
 // projets guidés, guide d'aide et messages de l'assistant.
 
+/* ---------- Où les élèves doivent enregistrer (affiché avant chaque enregistrement) ---------- */
+export const SAVE_PATH = ['Bureau', 'Classe', '4X (ta classe)', 'commun', 'Le projet en cours', 'Dossier de ton équipe'];
+
 /* ---------- Perçages tout prêts (diamètres avec un petit jeu pour que ça rentre) ---------- */
 export const DRILL_PRESETS = [
   { k: 'round', g: 'Sur mesure', label: 'Rond sur mesure', shape: 'round', d: 5 },
   { k: 'rect', g: 'Sur mesure', label: 'Rectangle sur mesure', shape: 'rect', w: 10, h: 6 },
   { k: 'led3', g: 'Électronique', label: 'LED 3 mm', shape: 'round', d: 3.2 },
   { k: 'led5', g: 'Électronique', label: 'LED 5 mm', shape: 'round', d: 5.2 },
+  { k: 'led10', g: 'Électronique', label: 'LED 10 mm', shape: 'round', d: 10.2 },
   { k: 'btn12', g: 'Électronique', label: 'Bouton poussoir rond 12 mm', shape: 'round', d: 12.2 },
   { k: 'btn16', g: 'Électronique', label: 'Bouton poussoir rond 16 mm', shape: 'round', d: 16.2 },
   { k: 'btnsq', g: 'Électronique', label: 'Capuchon de bouton carré 12×12', shape: 'rect', w: 12.6, h: 12.6 },
@@ -42,6 +46,7 @@ export const COMPONENTS = [
   { k: 'arcade', icon: '🔴', name: 'Bouton arcade 30 mm', help: 'Bouton d’arcade : il se monte dans un trou de 30 mm, la collerette reste au-dessus.',
     parts: [C(28, 28, [0, 14, 0]), C(33, 3, [0, 29.5, 0]), C(24, 4, [0, 33, 0])] },
   { k: 'led', icon: '💡', name: 'LED 5 mm', help: 'LED de 5 mm avec sa collerette : perce un trou de 5,2 mm.', parts: [C(5.8, 1, [0, 0.5, 0]), C(5, 7.6, [0, 4.8, 0])] },
+  { k: 'led10', img: 'led', icon: '💡', name: 'LED 10 mm', help: 'Grosse LED de 10 mm avec sa collerette : perce un trou de 10,2 mm (perçage « LED 10 mm »).', parts: [C(11.2, 1.5, [0, 0.75, 0]), C(10, 12, [0, 7.5, 0])] },
   { k: 'buzzer', icon: '🔊', name: 'Buzzer', help: 'Buzzer rond Ø12 mm.', parts: [C(12, 9.5, [0, 4.75, 0])] },
   { k: 'servo', icon: '⚙️', name: 'Servomoteur SG90', help: 'Petit servomoteur SG90 avec ses deux oreilles de fixation.',
     parts: [B([23, 22.5, 12.5], [0, 11.25, 0]), B([32, 2.5, 12.5], [0, 16, 0]), C(5, 4, [6, 24.5, 0])] },
@@ -75,7 +80,7 @@ export const MISSIONS = [
       { t: 'Déplace le cube', h: 'Clique sur le cube, garde le bouton enfoncé et fais-le glisser sur le plateau.', ok: c => c.ev.has('move') },
       { t: 'Donne-lui 40 mm de largeur', h: 'Sélectionne le cube, puis dans « Propriétés », tape 40 dans la case Largeur et appuie sur Entrée.', sel: '#f-sx', ok: c => c.objs.some(o => o.type === 'cube' && Math.abs(o.size.x - 40) < 0.6) },
       { t: 'Ajoute un cylindre et transforme-le en TROU', h: 'Pose un cylindre, puis clique sur le bouton « Trou » dans Propriétés : il devient rouge transparent.', sel: '[data-add="cylinder"]', ok: c => holes(c).length > 0 },
-      { t: 'Place le trou pour qu’il traverse le cube', h: 'Fais glisser le cylindre rouge dans le cube. Astuce : avec les deux sélectionnés (Maj + clic), « Centrer ↔ » et « Centrer ↕ » les alignent parfaitement.', ok: c => holes(c).some(h => solids(c).some(s => c.touch(h, s))) },
+      { t: 'Place le trou pour qu’il traverse le cube', h: 'Fais glisser le cylindre rouge dans le cube. Astuce : avec les deux sélectionnés (Maj + clic), « Aligner » → Centre, Centre les centre parfaitement.', ok: c => holes(c).some(h => solids(c).some(s => c.touch(h, s))) },
       { t: 'Regarde le résultat final', h: 'Clique sur « Aperçu final » en haut : les trous creusent la matière, comme à l’impression.', sel: '#btn-preview', ok: c => c.ev.has('preview') },
       { t: 'Télécharge ton objet', h: 'Bouton « Télécharger » en haut à droite. Le fichier STL s’ouvre dans le logiciel de l’imprimante (Cura, PrusaSlicer, Bambu Studio…).', sel: '#btn-export', ok: c => c.ev.has('export') },
     ],
@@ -99,7 +104,7 @@ export const MISSIONS = [
       { t: 'Place l’Arduino (repère gris) dans la boîte', h: 'Composants → « Arduino Uno ». Fais-le glisser dans la boîte, puis clique « Poser » : il descend au fond. Active « Rayons X » pour voir à travers.', sel: '[data-comp="arduino"]', ok: c => c.objs.some(a => a.params.comp === 'arduino' && c.objs.some(b => b.type === 'box' && c.inside(a, b))) },
       { t: 'Perce la sortie du câble USB', h: 'Outil « Percer » → « Câble USB-B (Arduino Uno) ». Clique sur la paroi de la boîte, juste en face de la prise USB de l’Arduino.', sel: '#tool-drill', ok: c => holes(c).some(h => h.params.preset === 'usbb') },
       { t: 'Perce 4 trous pour les boutons dans le couvercle', h: 'Percer → choisis ton bouton (arcade 30 mm, ou poussoir 12 mm…). Clique 4 fois sur la plaque du couvercle.', ok: c => holes(c).filter(h => /^btn/.test(h.params.preset || '')).length >= 4 },
-      { t: 'Perce 4 trous pour les LED', h: 'Percer → « LED 5 mm ». Une LED à côté de chaque bouton, de la même couleur !', ok: c => holes(c).filter(h => /^led/.test(h.params.preset || '')).length >= 4 },
+      { t: 'Perce 4 trous pour les LED', h: 'Percer → « LED 5 mm » ou « LED 10 mm » selon tes LED. Une LED à côté de chaque bouton, de la même couleur !', ok: c => holes(c).filter(h => /^led/.test(h.params.preset || '')).length >= 4 },
       { t: 'Vérifie avec l’aperçu final', h: 'Tous les trous doivent traverser. S’il en manque un, retourne en édition.', sel: '#btn-preview', ok: c => c.ev.has('preview') },
       { t: 'Télécharge la boîte et le couvercle', h: 'Ils seront imprimés côte à côte, le couvercle à l’envers (plaque sur le plateau) : c’est normal !', sel: '#btn-export', ok: c => c.ev.has('export') },
     ],
@@ -152,9 +157,9 @@ export const GUIDE = [
   { t: '🧱 Poser et modifier une forme', h: `
     <p>Clique sur une forme à gauche : elle apparaît sur le plateau, <b>déjà sélectionnée</b> (cadre jaune).</p>
     <p><b>Déplacer :</b> clique dessus et glisse. Elle avance par pas de la grille (1 mm par défaut, réglable en bas).</p>
-    <p><b>Taille :</b> dans Propriétés, tape les mesures en millimètres. Coche « Garder les proportions » pour agrandir sans déformer.</p>
+    <p><b>Taille :</b> tire les <b>petits carrés blancs</b> aux coins (ou les ronds sur les bords) pour agrandir ; le rond orange du dessus change la hauteur. Maintiens <b>Maj</b> pour garder les proportions. Tu peux aussi cliquer sur une mesure et la taper.</p><p><b>Déplacer sur un axe :</b> bouton ✥ <b>Flèches 3D</b> (touche M) : rouge = gauche ↔ droite, vert = monter / descendre, bleu = avant ↔ arrière.</p>
     <p><b>Hauteur :</b> la case Z dit à quelle hauteur est le bas de l’objet. <b>Poser</b> le fait descendre sur ce qui est en dessous (le plateau ou une autre pièce).</p>
-    <p><b>Tourner :</b> choisis l’angle (90°, 45°, 15°) puis les flèches ⟲ ⟳.</p>` },
+    <p><b>Tourner :</b> bouton <b>Tourner en 3D</b> (touche R) : tire un des 3 anneaux, par pas de 15°. Le bouton ⤵ <b>Retourner</b> met l’objet la tête en bas (pour percer le fond d’une boîte). Pour des angles précis : Propriétés → Tourner.</p>` },
   { t: '🕳️ Matière, trou, repère', h: `
     <p>Chaque objet a un rôle :</p>
     <ul><li><b>🧱 Matière</b> : sera imprimé en plastique.</li>
@@ -170,9 +175,9 @@ export const GUIDE = [
     <p>Tu peux percer plusieurs fois. <b>Échap</b> ou « Terminer » pour arrêter.</p>
     <p>Le trou percé est un objet comme les autres : tu peux le déplacer, changer son diamètre ou le supprimer.</p>` },
   { t: '📦 Boîte avec couvercle', h: `
-    <p>Donne la place qu’il te faut <b>à l’intérieur</b> (par exemple la taille de ta carte Arduino + 5 mm de chaque côté). L’assistant ajoute les parois et le fond.</p>
+    <p>Choisis la <b>forme</b> : rectangle, coins arrondis, rond / ovale, hexagone ou octogone.</p><p>Donne la place qu’il te faut <b>à l’intérieur</b> (par exemple la taille de ta carte Arduino + 5 mm de chaque côté). L’assistant ajoute les parois et le fond.</p>
     <p>Le <b>couvercle</b> a un rebord qui s’emboîte dans la boîte. Le <b>jeu</b> (0,3 mm) laisse un peu de place pour qu’il rentre sans forcer : augmente-le s’il est trop serré.</p>
-    <p>Le couvercle est posé à l’envers (plaque en bas) : c’est le bon sens pour l’imprimer.</p>
+    <p><b>Hauteur du couvercle</b> : 0 = couvercle plat ; plus grand = le couvercle a des bords, la boîte se ferme comme deux moitiés.</p><p>Le couvercle est posé à l’envers (plaque en bas) : c’est le bon sens pour l’imprimer.</p>
     <p>Pour placer tes composants, ajoute des <b>repères</b> (Arduino, boutons…) et active <b>Rayons X</b>.</p>` },
   { t: '✂️ Silhouette (théâtre d’ombre)', h: `
     <p>L’atelier Silhouette transforme un <b>dessin noir et blanc</b> en pièce plate.</p>
@@ -182,8 +187,8 @@ export const GUIDE = [
     <p>Le noir devient du plastique, le blanc à l’intérieur devient des trous (yeux, motifs). Évite les traits trop fins : moins de 1,5 mm, ça casse.</p>` },
   { t: '🔗 Fusionner et aligner', h: `
     <p>Sélectionne plusieurs objets : <b>Maj + clic</b> sur chacun, ou <b>Ctrl + A</b> pour tout prendre.</p>
-    <p><b>Fusionner</b> en fait une seule pièce : la matière se colle, les trous sélectionnés creusent. On ne peut plus les séparer après (sauf avec ↶ Annuler).</p>
-    <p><b>Aligner</b> : « Centrer ↔ » et « Centrer ↕ » mettent tous les objets sur le même axe. Pratique pour centrer un trou dans un cylindre !</p>` },
+    <p><b>Fusionner</b> en fait une seule pièce : la matière se colle, les trous sélectionnés creusent. Pour les séparer plus tard : sélectionne la pièce et clique <b>Défusionner</b> (Ctrl + Maj + G) ; les objets reviennent à leur place.</p>
+    <p><b>Aligner</b> : sur les 3 axes (gauche / centre / droite, arrière / centre / avant, bas / milieu / haut). Les pièces s’alignent sur la plus grande, qui ne bouge pas. Pratique pour centrer un trou dans un cylindre ou coller une pièce contre un bord !</p><p>Avec plusieurs pièces sélectionnées, les <b>flèches 3D</b> et les <b>anneaux 3D</b> les déplacent ou les tournent toutes ensemble.</p>` },
   { t: '🖨️ Télécharger et imprimer', h: `
     <p><b>STL</b> : le format le plus courant pour les imprimantes 3D. <b>OBJ</b> : accepté par la plupart des logiciels 3D.</p>
     <p>Ouvre le fichier dans le logiciel de l’imprimante (Cura, PrusaSlicer, Bambu Studio…). Les mesures sont en millimètres.</p>
@@ -197,7 +202,7 @@ export const GUIDE = [
     <table class="keys">
     <tr><td>Suppr</td><td>Supprimer</td></tr><tr><td>Ctrl + Z / Ctrl + Y</td><td>Annuler / Rétablir</td></tr>
     <tr><td>Ctrl + D</td><td>Dupliquer</td></tr><tr><td>Ctrl + A</td><td>Tout sélectionner</td></tr>
-    <tr><td>Ctrl + G</td><td>Fusionner</td></tr><tr><td>Flèches</td><td>Déplacer de 1 pas (Maj : 10 pas)</td></tr>
+    <tr><td>Ctrl + G</td><td>Fusionner</td></tr><tr><td>Ctrl + Maj + G</td><td>Défusionner</td></tr><tr><td>M</td><td>Flèches 3D (déplacer sur un axe)</td></tr><tr><td>R</td><td>Anneaux 3D (tourner)</td></tr><tr><td>Flèches</td><td>Déplacer de 1 pas (Maj : 10 pas)</td></tr>
     <tr><td>Page ↑ / Page ↓</td><td>Monter / descendre</td></tr><tr><td>D</td><td>Poser</td></tr>
     <tr><td>H / S</td><td>Trou / Matière</td></tr><tr><td>P</td><td>Outil Percer</td></tr>
     <tr><td>Échap</td><td>Arrêter l’outil / désélectionner</td></tr></table>` },

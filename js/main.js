@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
-import { buildGeometry, combine, setFont, hasFont, geoStore, clearCache } from './shapes.js';
+import { buildGeometry, combine, setFont, hasFont, geoStore, clearCache, BOX_SHAPES } from './shapes.js';
 import { initSilhouette, openSilhouette } from './silhouette.js';
 import * as H from './help.js';
 import { ic, hydrateIcons } from './icons.js';
@@ -144,7 +145,7 @@ function removeObjects(list) {
   state.objects = state.objects.filter(o => !list.includes(o));
 }
 function clearScene() { removeObjects([...state.objects]); }
-const ser = o => { const { mesh, outline, ...r } = o; return JSON.parse(JSON.stringify(r)); };
+const ser = o => { const { mesh, outline, _bk, _bb, ...r } = o; return JSON.parse(JSON.stringify(r)); };
 const baked = o => { o.mesh.updateMatrixWorld(true); return o.mesh.geometry.clone().applyMatrix4(o.mesh.matrixWorld); };
 
 /* ================= Historique et sauvegarde ================= */
@@ -173,7 +174,9 @@ const f32ToB64 = a => { const u = new Uint8Array(a.buffer, a.byteOffset, a.byteL
 const b64ToF32 = s => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new Float32Array(u.buffer); };
 function projectData() {
   const geos = {};
-  for (const o of state.objects) if (o.type === 'custom' && geoStore.has(o.params.geoId)) geos[o.params.geoId] = f32ToB64(geoStore.get(o.params.geoId));
+  // les pièces fusionnées, y compris celles cachées dans une fusion (pour pouvoir défusionner)
+  const walk = list => { for (const o of list) { if (o.type === 'custom' && geoStore.has(o.params.geoId)) geos[o.params.geoId] = f32ToB64(geoStore.get(o.params.geoId)); if (o.params?.src) walk(o.params.src); } };
+  walk(state.objects);
   return { app: 'atelier3d', version: 1, name: $('#proj-name').value, objects: state.objects.map(ser), geos, mission: mission ? { id: mission.def.id, i: mission.i } : null };
 }
 function loadProject(d) {
@@ -193,7 +196,7 @@ function autosave() {
 /* ================= Sélection ================= */
 function refreshUI() {
   for (const o of state.objects) if (o.outline) o.outline.visible = state.selected.has(o);
-  renderProps(); renderOutliner(); renderCtxbar(); updateAssistant();
+  renderProps(); renderOutliner(); renderCtxbar(); syncGizmo(); updateAssistant();
   $('#empty').hidden = state.objects.length > 0;
   $('#obj-count').textContent = state.objects.length;
 }
@@ -205,9 +208,12 @@ function renderCtxbar() {
   if (sel.length > 1) {
     el.innerHTML = `<span class="cb-label">${sel.length} objets</span>
       <button data-act="merge" class="primary" data-title="Fusionner" data-help="Colle toutes les pièces sélectionnées en une seule. Les trous sélectionnés creusent la matière.">${ic('merge')} Fusionner</button>
-      <button data-act="align:x" data-title="Centrer ↔" data-help="Met les centres sur la même ligne gauche-droite.">${ic('alignx')}</button>
-      <button data-act="align:z" data-title="Centrer ↕" data-help="Met les centres sur la même ligne avant-arrière.">${ic('alignz')}</button>
-      <button data-act="del" class="danger" data-title="Supprimer" data-help="Supprime les objets sélectionnés (Ctrl + Z pour les récupérer).">${ic('trash')}</button>`;
+      <span class="cb-sep"></span>
+      <button data-act="gizmo:translate" class="${gizmo === 'translate' ? 'on' : ''}" data-title="✥ Flèches 3D (M)" data-help="Déplace toutes les pièces ensemble, sur un seul axe : rouge = gauche ↔ droite, vert = monter / descendre, bleu = avant ↔ arrière.">${ic('move')}</button>
+      <button data-act="gizmo:rotate" class="${gizmo === 'rotate' ? 'on' : ''}" data-title="⟲ Tourner en 3D (R)" data-help="Fait tourner toutes les pièces ensemble autour de leur centre.">${ic('rot3')}</button>
+      <button data-act="alignpop" class="${alignPop ? 'on' : ''}" data-title="Aligner" data-help="Aligne les pièces sur la plus grande : à gauche, au centre, à droite, devant, derrière, en bas, en haut…">${ic('alignx')} Aligner</button>
+      <button data-act="del" class="danger" data-title="Supprimer" data-help="Supprime les objets sélectionnés (Ctrl + Z pour les récupérer).">${ic('trash')}</button>
+      ${alignPop ? `<div class="cb-pop">${alignGrid()}</div>` : ''}`;
     return;
   }
   const o = sel[0];
@@ -216,9 +222,14 @@ function renderCtxbar() {
       <button data-act="kind:hole" class="${o.kind === 'hole' ? 'on' : ''}" data-title="🕳️ Trou" data-help="Creuse toutes les pièces qu’il traverse. (touche H)">${KI.hole}Trou</button>
       <button data-act="kind:ghost" class="${o.kind === 'ghost' ? 'on' : ''}" data-title="👻 Repère" data-help="N’est jamais imprimé : sert à mesurer ou vérifier que tout rentre.">${KI.ghost}</button></div>
     <button data-act="drop" data-title="⬇ Poser (D)" data-help="Fait descendre l’objet sur ce qu’il y a en dessous : le plateau ou une autre pièce.">${ic('drop')}</button>
-    <button data-act="rot:y:1" data-title="⟲ Tourner" data-help="Tourne l’objet à plat (l’angle se règle dans Propriétés).">${ic('rotl')}</button>
+    <span class="cb-sep"></span>
+    <button data-act="gizmo:translate" class="${gizmo === 'translate' ? 'on' : ''}" data-title="✥ Flèches 3D (M)" data-help="Affiche 3 flèches : <b style=&quot;color:#dc2626&quot;>rouge</b> = gauche ↔ droite, <b style=&quot;color:#16a34a&quot;>vert</b> = monter ↕ descendre, <b style=&quot;color:#2563eb&quot;>bleu</b> = avant ↔ arrière. Tire une flèche pour bouger sur un seul axe.">${ic('move')}</button>
+    <button data-act="gizmo:rotate" class="${gizmo === 'rotate' ? 'on' : ''}" data-title="⟲ Tourner en 3D (R)" data-help="Affiche 3 anneaux de couleur : tire un anneau pour faire tourner l’objet dans ce sens, par pas de 15°.">${ic('rot3')}</button>
+    <button data-act="flip" data-title="⤵ Retourner" data-help="Met l’objet la tête en bas (demi-tour). Pratique pour percer le fond d’une boîte ou le dessus d’un couvercle.">${ic('flip')}</button>
+    <span class="cb-sep"></span>
     <button data-act="dup" data-title="⧉ Dupliquer (Ctrl + D)" data-help="Fait une copie juste à côté.">${ic('copy')}</button>
     ${o.kind === 'solid' ? `<button data-act="drill" data-title="🔩 Percer" data-help="Ouvre l’outil Percer pour faire un trou dans cette pièce."><img class="ki" src="img/outils/drill.png" alt=""></button>` : ''}
+    ${o.type === 'custom' && o.params.src ? `<button data-act="unmerge" data-title="✂️ Défusionner (Ctrl + Maj + G)" data-help="Sépare la pièce fusionnée : les objets d’origine reviennent, à leur place.">${ic('unmerge')}</button>` : ''}
     <button data-act="del" class="danger" data-title="🗑 Supprimer (Suppr)" data-help="Supprime l’objet. Ctrl + Z pour le récupérer.">${ic('trash')}</button>`;
 }
 function cachedBox(o) {
@@ -238,6 +249,7 @@ function updateOverlays() {
   const show = sel.length > 0 && !state.preview && state.mode !== 'drill';
   bar.hidden = !show;
   dims.hidden = !(show && sel.length === 1);
+  const hd = $('#handles'); hd.hidden = !(show && sel.length === 1 && gizmo !== 'rotate');
   if (!show) return;
   const b = new THREE.Box3(); sel.forEach(o => b.union(cachedBox(o)));
   // barre d'actions au-dessus de l'objet
@@ -255,11 +267,19 @@ function updateOverlays() {
   const val = { sx: s.x, sy: s.z, sz: s.y }, pre = { sx: '↔', sy: '⤢', sz: '↕' };
   for (const el of $$('.dim', dims)) {
     const k = el.dataset.dim;
-    place(el, toScreen(m.localToWorld(pts[k].clone())), 0, k === 'sz' ? 0 : 14);
+    place(el, toScreen(m.localToWorld(pts[k].clone())), k === 'sz' ? 30 : 0, k === 'sz' ? 0 : 22);
     if (editingDim !== el) { const t = `${pre[k]} ${r2(val[k])}`; if (el.textContent !== t) el.textContent = t; }
   }
+  if (!hd.hidden) {
+    const hs = $$('.hdl', hd);
+    HANDLES.forEach((h, i) => {
+      const v = h === 'top' ? new THREE.Vector3(0, s.y / 2, 0) : new THREE.Vector3(h[0] * s.x / 2, -s.y / 2, h[1] * s.z / 2);
+      // pendant un agrandissement, la taille affichée suit l'échelle provisoire
+      place(hs[i], toScreen(m.localToWorld(v)));
+    });
+  }
   const lb = $('#lift'), t = `⇕ ${r2(b.min.y)} mm`;
-  place(lb, top, 0, -26);
+  place(lb, top, 0, -40);
   if (lb.textContent !== t) lb.textContent = t;
   lb.classList.toggle('up', b.min.y > 0.05);
 }
@@ -293,6 +313,114 @@ $('#lift').addEventListener('pointermove', e => {
   setMinY(lift.o, r2(v));
 });
 $('#lift').addEventListener('pointerup', () => { if (!lift) return; lift = null; emit('lift', false); pushHistory(); refreshUI(); });
+
+/* ----- Flèches 3D (déplacer sur un axe) et anneaux 3D (tourner sur un axe) ----- */
+let gizmo = null, tcStart = null, group = null;
+const tc = new TransformControls(camera, renderer.domElement);
+tc.setSize(0.95); tc.setSpace('world'); tc.setRotationSnap(THREE.MathUtils.degToRad(15));
+scene.add(tc);
+// Plusieurs pièces : les flèches et anneaux tiennent un point invisible au centre du groupe
+const pivot = new THREE.Object3D(); scene.add(pivot);
+const groupBox = objs => { const b = new THREE.Box3(); objs.forEach(o => b.union(worldBox(o))); return b; };
+function prepGroup() {
+  pivot.updateMatrixWorld(true);
+  group.inv = pivot.matrixWorld.clone().invert();
+  group.mats = group.objs.map(o => { o.mesh.updateMatrixWorld(true); return o.mesh.matrixWorld.clone(); });
+}
+const gizmoObjs = () => (group ? group.objs : tc.object?.userData.obj ? [tc.object.userData.obj] : []);
+tc.addEventListener('dragging-changed', e => {
+  controls.enabled = !e.value;
+  const objs = gizmoObjs(); if (!objs.length) return;
+  if (e.value) { tcStart = groupBox(objs).min.y; if (group) prepGroup(); return; }
+  if (!group) { const o = objs[0]; o.pos = { x: r2(o.mesh.position.x), y: r2(o.mesh.position.y), z: r2(o.mesh.position.z) }; o.quat = o.mesh.quaternion.toArray(); syncTransform(o); }
+  if (gizmo === 'rotate') { // après une rotation, le bas reste à la même hauteur
+    const dy = tcStart - groupBox(objs).min.y;
+    objs.forEach(o => { o.pos.y = r2(o.pos.y + dy); syncTransform(o); });
+  }
+  emit(gizmo === 'rotate' ? 'rotate' : 'move', false); pushHistory(); refreshUI();
+});
+tc.addEventListener('objectChange', () => {
+  if (group) {
+    const D = pivot.matrixWorld.clone().multiply(group.inv), P = new THREE.Vector3(), Q = new THREE.Quaternion(), S = new THREE.Vector3();
+    group.objs.forEach((o, i) => {
+      D.clone().multiply(group.mats[i]).decompose(P, Q, S);
+      o.pos = { x: r2(P.x), y: r2(P.y), z: r2(P.z) }; o.quat = Q.toArray(); syncTransform(o);
+    });
+    return;
+  }
+  const o = tc.object?.userData.obj; if (!o) return;
+  o.pos = { x: r2(o.mesh.position.x), y: r2(o.mesh.position.y), z: r2(o.mesh.position.z) }; o.quat = o.mesh.quaternion.toArray();
+});
+function setGizmo(mode) {
+  gizmo = gizmo === mode ? null : mode;
+  syncGizmo(); renderCtxbar(); updateAssistant();
+  if (gizmo) { emit('gizmo:' + gizmo, false); flash(gizmo === 'translate'
+    ? '✥ <b>Flèches 3D</b> : tire la flèche <b style="color:#dc2626">rouge</b> (gauche ↔ droite), <b style="color:#16a34a">verte</b> (monter / descendre) ou <b style="color:#2563eb">bleue</b> (avant ↔ arrière). Reclique sur le bouton pour les cacher.'
+    : '⟲ <b>Tourner en 3D</b> : tire un anneau pour faire tourner l’objet dans ce sens (par pas de 15°). Le bouton ⤵ <b>Retourner</b> le met directement la tête en bas.'); }
+}
+function syncGizmo() {
+  const sel = [...state.selected];
+  if (!gizmo || !sel.length || state.preview || state.mode === 'drill') { tc.detach(); group = null; return; }
+  if (sel.length === 1) { group = null; if (tc.object !== sel[0].mesh) tc.attach(sel[0].mesh); }
+  else {
+    pivot.position.copy(groupBox(sel).getCenter(new THREE.Vector3())); pivot.quaternion.identity();
+    group = { objs: sel }; prepGroup();
+    if (tc.object !== pivot) tc.attach(pivot);
+  }
+  tc.setMode(gizmo); tc.setTranslationSnap(state.grid);
+}
+
+/* ----- Poignées : tirer un coin ou un bord pour agrandir, le dessus pour la hauteur ----- */
+const HANDLES = [[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, 0], [1, 0], [0, -1], [0, 1], 'top'];
+let rs = null;
+$('#handles').innerHTML = HANDLES.map((h, i) => {
+  const kind = h === 'top' ? 'top' : h[0] && h[1] ? 'corner' : 'edge';
+  const help = kind === 'top' ? 'Tire vers le haut ou le bas pour changer la hauteur. Le bas de l’objet ne bouge pas.'
+    : `Tire ce ${kind === 'corner' ? 'coin' : 'bord'} pour agrandir ou rétrécir : le côté opposé ne bouge pas. Maintiens <b>Maj</b> pour garder les proportions.`;
+  return `<button class="hdl ${kind}" data-i="${i}" data-title="${kind === 'top' ? 'Poignée de hauteur' : 'Poignée d’agrandissement'}" data-help="${help}" aria-label="${kind === 'top' ? 'Changer la hauteur' : 'Agrandir'}"></button>`;
+}).join('');
+$('#handles').addEventListener('pointerdown', e => {
+  const b = e.target.closest('.hdl'), o = [...state.selected][0]; if (!b || !o) return;
+  e.preventDefault(); b.setPointerCapture(e.pointerId);
+  const h = HANDLES[+b.dataset.i]; o.mesh.updateMatrixWorld(true);
+  const M = o.mesh.matrixWorld.clone(), s0 = { ...o.size };
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(o.mesh.quaternion).normalize();
+  let plane;
+  if (h === 'top') { // plan vertical tourné vers la caméra
+    const d = camera.getWorldDirection(new THREE.Vector3());
+    plane = new THREE.Plane().setFromNormalAndCoplanarPoint(d.sub(up.clone().multiplyScalar(d.dot(up))).normalize(), new THREE.Vector3().applyMatrix4(M));
+  } else plane = new THREE.Plane().setFromNormalAndCoplanarPoint(up, new THREE.Vector3(0, -s0.y / 2, 0).applyMatrix4(M));
+  rs = { o, h, M, Minv: M.clone().invert(), s0, plane, n: null };
+});
+$('#handles').addEventListener('pointermove', e => {
+  if (!rs) return;
+  setRay(e); const p = new THREE.Vector3(); if (!ray.ray.intersectPlane(rs.plane, p)) return;
+  const L = p.applyMatrix4(rs.Minv), { s0, h } = rs, g = state.grid, sn = v => Math.max(g, Math.round(v / g) * g);
+  const keep = e.shiftKey || state.lock;
+  let nx = s0.x, ny = s0.y, nz = s0.z, cx = 0, cz = 0;
+  if (h === 'top') { ny = sn(L.y + s0.y / 2); if (keep) { const f = ny / s0.y; nx = r2(s0.x * f); nz = r2(s0.z * f); } }
+  else {
+    [cx, cz] = h;
+    if (cx) nx = sn(cx * L.x + s0.x / 2);
+    if (cz) nz = sn(cz * L.z + s0.z / 2);
+    if (keep) { const f = cx && cz ? Math.max(nx / s0.x, nz / s0.z) : cx ? nx / s0.x : nz / s0.z; nx = r2(s0.x * f); nz = r2(s0.z * f); ny = r2(s0.y * f); }
+  }
+  // le côté opposé et le bas restent fixes
+  const c = new THREE.Vector3(cx ? -cx * s0.x / 2 + cx * nx / 2 : 0, -s0.y / 2 + ny / 2, cz ? -cz * s0.z / 2 + cz * nz / 2 : 0).applyMatrix4(rs.M);
+  const m = rs.o.mesh; m.position.copy(c); m.scale.set(nx / s0.x, ny / s0.y, nz / s0.z); m.updateMatrixWorld(true);
+  rs.n = { nx, ny, nz, c };
+  const tip = $('#draginfo'); tip.hidden = false;
+  tip.style.left = (e.clientX + 16) + 'px'; tip.style.top = (e.clientY + 12) + 'px';
+  tip.innerHTML = `Largeur <b>${r2(nx)}</b> · Profondeur <b>${r2(nz)}</b> · Hauteur <b>${r2(ny)}</b> mm${keep ? '<br><small>proportions gardées</small>' : '<br><small>Maj : garder les proportions</small>'}`;
+});
+$('#handles').addEventListener('pointerup', () => {
+  if (!rs) return;
+  const { o, n } = rs; rs = null; $('#draginfo').hidden = true;
+  o.mesh.scale.set(1, 1, 1);
+  if (!n) { syncTransform(o); return; }
+  o.size = { x: r2(n.nx), y: r2(n.ny), z: r2(n.nz) }; o.pos = { x: r2(n.c.x), y: r2(n.c.y), z: r2(n.c.z) };
+  syncMesh(o); linkLid(o); emit('resize', false); pushHistory(); refreshUI();
+});
 function selectOnly(o) { state.selected.clear(); if (o) state.selected.add(o); refreshUI(); }
 
 function renderOutliner() {
@@ -322,6 +450,7 @@ function pick(e, filter) {
 let press = null, hoverObj = null;
 view.addEventListener('pointerdown', e => {
   if (e.target !== renderer.domElement || e.button !== 0) return;
+  if (tc.object && tc.axis) { controls.enabled = false; return; } // on attrape une flèche ou un anneau 3D
   if (state.preview) setPreview(false);
   if (state.mode === 'drill') {
     const h = pick(e, o => o.kind === 'solid');
@@ -417,6 +546,7 @@ function drillAt(hit) {
   addObject(o, { place: false });
 }
 function setMode(m) {
+  queueMicrotask(syncGizmo);
   state.mode = m;
   $('#drill-panel').hidden = m !== 'drill';
   $('#tool-drill').classList.toggle('on', m === 'drill');
@@ -456,25 +586,28 @@ function typeParams(o) {
     case 'cylinder': case 'cone': return `<h4>Forme</h4>${num('seg', 'Nombre de côtés', p.seg || 64, '3 = prisme triangulaire, 6 = hexagone, 64 = bien rond.')}`;
     case 'star': return `<h4>Forme</h4>${num('n', 'Branches', p.n || 5, 'Nombre de branches de l’étoile (3 à 16).')}`;
     case 'tube': return `<h4>Forme</h4>${num('wall', 'Épaisseur de paroi', p.wall ?? 2, 'Épaisseur du tour du tube, en mm.')}`;
-    case 'box': return `<h4>Boîte</h4>${num('wall', 'Épaisseur des parois', p.wall ?? 2, 'Parois et fond. 2 mm, c’est solide.')}
-      <p class="muted small">Intérieur : ${r2(o.size.x - 2 * p.wall)} × ${r2(o.size.z - 2 * p.wall)} × ${r2(o.size.y - p.wall)} mm. Les dimensions ci-dessous sont celles de l’extérieur.</p>`;
-    case 'lid': return `<h4>Couvercle</h4>${num('clr', 'Jeu (mm)', p.clr ?? 0.3, 'Espace laissé pour que le couvercle rentre sans forcer. Trop serré ? Mets 0,4 ou 0,5.')}`;
+    case 'box': return `<h4>Boîte</h4>${shapeSelect(p)}${num('wall', 'Épaisseur des parois', p.wall ?? 2, 'Parois et fond. 2 mm, c’est solide.')}
+      <p class="muted small">Les dimensions ci-dessous sont celles de l’extérieur. Le couvercle suit les changements de forme et de taille.</p>`;
+    case 'lid': return `<h4>Couvercle</h4>${num('skirt', 'Hauteur des bords (0 = plat)', p.skirt || 0, 'Hauteur des bords extérieurs du couvercle. Plus grand = la boîte se ferme comme deux moitiés.')}
+      ${num('clr', 'Jeu (mm)', p.clr ?? 0.3, 'Espace laissé pour que le couvercle rentre sans forcer. Trop serré ? Mets 0,4 ou 0,5.')}
+      <p class="muted small">La hauteur ci-dessous = plaque + bords + rebord qui rentre dans la boîte.</p>`;
     case 'silhouette': return `<button class="wide" data-act="edit-sil">${ic('pencil')} Modifier le dessin</button>`;
     default: return '';
   }
 }
 const openSecs = new Set();
 $('#props').addEventListener('toggle', e => { const d = e.target.closest?.('details[data-sec]'); if (d) d.open ? openSecs.add(d.dataset.sec) : openSecs.delete(d.dataset.sec); }, true);
+function shapeSelect(p) {
+  return `<label class="num" data-title="Forme de la boîte" data-help="Le contour de la boîte vue de dessus."><span>Forme</span><select data-f="bshape">${Object.entries(BOX_SHAPES).map(([k, l]) => `<option value="${k}" ${(p.shape || 'rect') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    ${p.shape === 'round' ? num('radius', 'Rayon des coins', p.r || 0, 'Plus le rayon est grand, plus les coins sont arrondis.') : ''}`;
+}
 function renderProps() {
   const el = $('#props'), sel = [...state.selected];
   if (!sel.length) { el.innerHTML = `<h3>Propriétés</h3><p class="muted">Sélectionne un objet pour voir et changer ses mesures.</p>`; return; }
   if (sel.length > 1) {
     el.innerHTML = `<h3>${sel.length} objets sélectionnés</h3>
       <button id="btn-merge" class="primary wide" data-act="merge" data-title="Fusionner" data-help="Colle toutes les pièces sélectionnées en une seule. Les trous sélectionnés creusent la matière.">${ic('merge')} Fusionner en une pièce</button>
-      <h4>Aligner</h4><div class="acts">
-      <button data-act="align:x" data-title="Centrer ↔" data-help="Met les centres sur la même ligne gauche-droite.">${ic('alignx')} Centrer ↔</button>
-      <button data-act="align:z" data-title="Centrer ↕" data-help="Met les centres sur la même ligne avant-arrière.">${ic('alignz')} Centrer ↕</button>
-      <button data-act="align:y" data-title="Même bas" data-help="Met le bas de tous les objets à la même hauteur que le plus bas.">${ic('alignb')} Même bas</button></div>
+      <h4>${ic('alignx')} Aligner sur les 3 axes</h4>${alignGrid()}
       <h4>Rôle de tous</h4><div class="seg">
       <button data-act="kind:solid">${KI.solid}Matière</button><button data-act="kind:hole">${KI.hole}Trou</button><button data-act="kind:ghost">${KI.ghost}Repère</button></div>
       <div class="acts"><button data-act="dup">${ic('copy')} Dupliquer</button><button data-act="del" class="danger">${ic('trash')} Supprimer</button></div>`;
@@ -543,6 +676,9 @@ function applyField(o, f, t) {
     case 'n': o.params.n = Math.max(3, Math.min(16, Math.round(v) || 5)); syncMesh(o); break;
     case 'wall': o.params.wall = Math.max(0.4, v || 2); syncMesh(o); setMinY(o, b0); linkLid(o); break;
     case 'clr': o.params.clr = Math.max(0, Math.min(2, v)); syncMesh(o); break;
+    case 'bshape': o.params.shape = t.value; syncMesh(o); linkLid(o); break;
+    case 'radius': o.params.r = Math.max(0, v || 0); syncMesh(o); linkLid(o); break;
+    case 'skirt': { const old = o.params.skirt || 0; o.params.skirt = Math.max(0, v || 0); o.size.y = r2(o.size.y + o.params.skirt - old); syncMesh(o); setMinY(o, b0); break; }
   }
   pushHistory(); refreshUI();
 }
@@ -559,14 +695,23 @@ function onActClick(e) {
   if (a === 'del') return deleteSel();
   if (a === 'mirror') { sel.forEach(o => { o.params.mirror = !o.params.mirror; syncMesh(o); }); pushHistory(); return refreshUI(); }
   if (a === 'merge') return mergeSel();
-  if (a === 'align') return alignSel(x);
+  if (a === 'align') return alignSel(x, y || 'mid');
+  if (a === 'alignpop') { alignPop = !alignPop; return renderCtxbar(); }
   if (a === 'edit-sil') return editSilhouette(sel[0]);
   if (a === 'drill') return setMode('drill');
+  if (a === 'gizmo') return setGizmo(x);
+  if (a === 'flip') return rotateSel('x', 1, 180);
+  if (a === 'unmerge') return unmergeSel();
 }
 function linkLid(box) {
   if (box.type !== 'box') return;
   for (const l of state.objects.filter(o => o.type === 'lid' && o.params.boxId === box.id)) {
-    const b0 = worldBox(l).min.y; l.size.x = box.size.x; l.size.z = box.size.z; l.params.wall = box.params.wall; syncMesh(l); setMinY(l, b0);
+    const b0 = worldBox(l).min.y; l.size.x = box.size.x; l.size.z = box.size.z;
+    l.params.wall = box.params.wall; l.params.shape = box.params.shape; l.params.r = box.params.r;
+    syncMesh(l); setMinY(l, b0);
+    // s'il a grandi jusqu'à chevaucher la boîte, le couvercle se pousse à côté
+    const B = worldBox(box), Lb = worldBox(l);
+    if (B.intersectsBox(Lb)) { l.pos.x = r2(l.pos.x + (B.max.x + 6 - Lb.min.x)); syncTransform(l); }
   }
 }
 function setKind(list, k) {
@@ -574,9 +719,9 @@ function setKind(list, k) {
   if (k === 'hole') emit('hole', false);
   pushHistory(); refreshUI();
 }
-function rotateSel(axis, sign) {
+function rotateSel(axis, sign, deg = state.rotStep) {
   const ax = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) }[axis];
-  const q = new THREE.Quaternion().setFromAxisAngle(ax, sign * state.rotStep * Math.PI / 180);
+  const q = new THREE.Quaternion().setFromAxisAngle(ax, sign * deg * Math.PI / 180);
   for (const o of state.selected) { const b0 = worldBox(o).min.y; o.quat = new THREE.Quaternion().fromArray(o.quat).premultiply(q).normalize().toArray(); syncTransform(o); setMinY(o, b0); }
   emit('rotate', false); pushHistory(); refreshUI();
 }
@@ -605,13 +750,24 @@ function duplicateSel() {
   state.selected = new Set(copies); emit('dup', false); pushHistory(); refreshUI();
 }
 function deleteSel() { if (!state.selected.size) return; removeObjects([...state.selected]); pushHistory(); refreshUI(); }
-function alignSel(axis) {
-  const sel = [...state.selected], all = new THREE.Box3();
-  sel.forEach(o => all.union(worldBox(o)));
-  const c = all.getCenter(new THREE.Vector3());
+/** Grille d'alignement : 3 axes × (début, centre, fin). Repère = la plus grande pièce. */
+function alignGrid() {
+  const rows = [['x', '↔ Gauche – droite', ['Gauche', 'Centre', 'Droite']], ['z', '⤢ Arrière – avant', ['Arrière', 'Centre', 'Avant']], ['y', '↕ Hauteur', ['Bas', 'Milieu', 'Haut']]];
+  return `<div class="align-grid">${rows.map(([a, label, ws]) => `<span>${label}</span>${['min', 'mid', 'max'].map((w, i) =>
+    `<button data-act="align:${a}:${w}" data-title="Aligner : ${ws[i]}" data-help="${w === 'mid' ? 'Met le centre de chaque pièce au centre de la plus grande pièce, sur cet axe.' : `Colle chaque pièce contre le côté « ${ws[i]} » de la plus grande pièce (les bords sont alignés).`}">${ws[i]}</button>`).join('')}`).join('')}</div>
+    <p class="muted small">Les pièces s’alignent sur la plus grande (elle ne bouge pas).</p>`;
+}
+let alignPop = false;
+function alignSel(axis, where = 'mid') {
+  const sel = [...state.selected]; if (sel.length < 2) return;
+  const boxes = new Map(sel.map(o => [o, worldBox(o)]));
+  const vol = b => { const s = b.getSize(new THREE.Vector3()); return s.x * s.y * s.z; };
+  const ref = sel.reduce((a, o) => (vol(boxes.get(o)) > vol(boxes.get(a)) ? o : a), sel[0]), R = boxes.get(ref);
+  const target = where === 'min' ? R.min[axis] : where === 'max' ? R.max[axis] : (R.min[axis] + R.max[axis]) / 2;
   for (const o of sel) {
-    const b = worldBox(o), oc = b.getCenter(new THREE.Vector3());
-    if (axis === 'y') setMinY(o, all.min.y); else { o.pos[axis] = r2(o.pos[axis] + c[axis] - oc[axis]); syncTransform(o); }
+    if (o === ref) continue;
+    const b = boxes.get(o), cur = where === 'min' ? b.min[axis] : where === 'max' ? b.max[axis] : (b.min[axis] + b.max[axis]) / 2;
+    o.pos[axis] = r2(o.pos[axis] + target - cur); syncTransform(o);
   }
   emit('align', false); pushHistory(); refreshUI();
 }
@@ -630,12 +786,37 @@ async function mergeSel() {
   geo.translate(-c.x, -c.y, -c.z);
   const id = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   geoStore.set(id, new Float32Array(geo.attributes.position.array));
-  const o = newObj('custom', { kind: solids.length ? 'solid' : 'hole', color: solids[0]?.color, size: { x: r2(s.x), y: r2(s.y), z: r2(s.z) }, params: { geoId: id } });
+  const size = { x: r2(s.x), y: r2(s.y), z: r2(s.z) };
+  // On garde les objets d'origine et la position de départ : « Défusionner » pourra les remettre
+  const o = newObj('custom', { kind: solids.length ? 'solid' : 'hole', color: solids[0]?.color, size, params: { geoId: id, src: sel.map(ser), frame: { pos: { x: c.x, y: c.y, z: c.z }, size: { ...size } } } });
   o.pos = { x: c.x, y: c.y, z: c.z };
   removeObjects(sel);
   emit('merge', false);
   addObject(o, { place: false });
-  flash('🔗 Fusion réussie : c’est maintenant une seule pièce.');
+  flash('🔗 Fusion réussie : c’est maintenant une seule pièce. Tu pourras la séparer avec « Défusionner ».');
+}
+function unmergeSel() {
+  const o = [...state.selected][0];
+  if (!o || o.type !== 'custom') return toast('Sélectionne une pièce fusionnée pour la défusionner.');
+  if (!o.params.src?.length) return toast('Cette pièce a été fusionnée avec une ancienne version : on ne peut plus la séparer (essaie ↶ Annuler).');
+  const f = o.params.frame;
+  // déplacement / rotation / agrandissement subis par la pièce depuis la fusion
+  const T = new THREE.Matrix4().compose(new THREE.Vector3(o.pos.x, o.pos.y, o.pos.z), new THREE.Quaternion().fromArray(o.quat),
+    new THREE.Vector3(o.size.x / f.size.x, o.size.y / f.size.y, o.size.z / f.size.z))
+    .multiply(new THREE.Matrix4().makeTranslation(-f.pos.x, -f.pos.y, -f.pos.z));
+  const back = o.params.src.map(r => {
+    const c = { ...JSON.parse(JSON.stringify(r)), id: uid++ };
+    const m = T.clone().multiply(new THREE.Matrix4().compose(new THREE.Vector3(c.pos.x, c.pos.y, c.pos.z), new THREE.Quaternion().fromArray(c.quat), new THREE.Vector3(1, 1, 1)));
+    const P = new THREE.Vector3(), Q = new THREE.Quaternion(), S = new THREE.Vector3(); m.decompose(P, Q, S);
+    c.pos = { x: r2(P.x), y: r2(P.y), z: r2(P.z) }; c.quat = Q.toArray();
+    if (Math.abs(S.x - 1) + Math.abs(S.y - 1) + Math.abs(S.z - 1) > 1e-3) c.size = { x: r2(c.size.x * S.x), y: r2(c.size.y * S.y), z: r2(c.size.z * S.z) };
+    return c;
+  });
+  removeObjects([o]);
+  for (const c of back) { state.objects.push(c); syncMesh(c); }
+  state.selected = new Set(back);
+  emit('unmerge', false); pushHistory(); refreshUI();
+  flash(`✂️ Pièce séparée : les ${back.length} objets d’origine sont revenus, à leur place.`);
 }
 
 /* ================= Aperçu final et téléchargement ================= */
@@ -646,7 +827,8 @@ async function setPreview(on) {
   previewMeshes = [];
   state.preview = on; $('#btn-preview').classList.toggle('on', on); $('#btn-edit').classList.toggle('on', !on);
   document.body.classList.toggle('previewing', on);
-  if (!on) { state.objects.forEach(o => { o.mesh.visible = true; }); updateAssistant(); return; }
+  syncGizmo();
+  if (!on) { state.objects.forEach(o => { o.mesh.visible = true; }); syncGizmo(); updateAssistant(); return; }
   if (state.mode === 'drill') setMode('select');
   const solids = state.objects.filter(o => o.kind === 'solid');
   if (!solids.length) { state.preview = false; $('#btn-preview').classList.remove('on'); $('#btn-edit').classList.add('on'); document.body.classList.remove('previewing'); return toast('Il n’y a encore aucune pièce en matière à montrer.'); }
@@ -701,35 +883,97 @@ $('#exp-go').addEventListener('click', async () => {
     g.computeBoundingBox(); g.translate(0, 0, -g.boundingBox.min.z);
     const mesh = new THREE.Mesh(g);
     const data = fmt === 'stl' ? new STLExporter().parse(mesh, { binary: true }) : new OBJExporter().parse(mesh);
-    download(new Blob([data], { type: fmt === 'stl' ? 'model/stl' : 'text/plain' }), `${name}.${fmt}`);
-    $('#dlg-export').close(); emit('export');
-    flash(`⬇ <b>${name}.${fmt}</b> est dans ton dossier Téléchargements. Ouvre-le dans le logiciel de l’imprimante.`);
+    busy(false);
+    $('#dlg-export').close();
+    askSave(new Blob([data], { type: fmt === 'stl' ? 'model/stl' : 'text/plain' }), `${name}.${fmt}`, fmt, where => {
+      emit('export');
+      flash(`⬇ <b>${name}.${fmt}</b> est enregistré ${where}. Ouvre-le dans le logiciel de l’imprimante.`);
+    });
+    return;
   } catch (e) { console.error(e); toast('Le fichier n’a pas pu être fabriqué. Essaie d’exporter les pièces une par une.'); }
   busy(false);
 });
 function download(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
 
+/* ----- Enregistrer : rappel du dossier de classe, puis fenêtre « Enregistrer sous » ----- */
+const FILE_TYPES = {
+  atelier3d: { description: 'Projet Atelier 3D', accept: { 'application/json': ['.atelier3d'] } },
+  stl: { description: 'Fichier STL (impression 3D)', accept: { 'model/stl': ['.stl'] } },
+  obj: { description: 'Fichier OBJ', accept: { 'text/plain': ['.obj'] } },
+};
+let pendingSave = null;
+$('#save-path').innerHTML = H.SAVE_PATH.map((p, i) => `<li>${ic('folder')}<span>${esc(p)}</span></li>`).join('');
+function askSave(blob, filename, type, done) {
+  pendingSave = { blob, type, done, ext: '.' + type };
+  $('#save-name').value = filename.replace(/\.[^.]+$/, '');
+  $('#save-ext').textContent = '.' + type;
+  $('#save-kind').textContent = type === 'atelier3d' ? 'ton projet (pour le reprendre plus tard)' : `le fichier ${type.toUpperCase()} pour l’imprimante`;
+  $('#save-fallback').hidden = !!window.showSaveFilePicker;
+  $('#dlg-save').showModal();
+}
+$('#save-go').addEventListener('click', async () => {
+  if (!pendingSave) return;
+  const { blob, type, done, ext } = pendingSave;
+  const name = (($('#save-name').value.trim() || 'mon-objet').replace(/[\\/:*?"<>|]/g, '-')) + ext;
+  if (window.showSaveFilePicker) {
+    try {
+      // « id » : le navigateur se souvient du dernier dossier choisi (le dossier d'équipe)
+      const h = await window.showSaveFilePicker({ suggestedName: name, id: 'atelier3d-' + (type === 'atelier3d' ? 'projet' : 'impression'), startIn: 'desktop', types: [FILE_TYPES[type]] });
+      const w = await h.createWritable(); await w.write(blob); await w.close();
+      $('#dlg-save').close(); pendingSave = null;
+      done?.(`sous le nom <b>${esc(h.name)}</b>, dans le dossier que tu as choisi`);
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return; // fenêtre fermée : on reste sur le rappel du chemin
+      console.warn(e);
+    }
+  }
+  // navigateur sans fenêtre « Enregistrer sous » : téléchargement classique
+  download(blob, name);
+  $('#dlg-save').close(); pendingSave = null;
+  done?.(`dans <b>Téléchargements</b> (${esc(name)}) : déplace-le dans le dossier de ton équipe`);
+});
+
 /* ================= Outils magiques ================= */
 function initBoxDialog() {
   const sel = $('#box-preset');
   sel.innerHTML = H.BOX_PRESETS.map(p => `<option value="${p.k}">${p.label}</option>`).join('');
+  // choix de la forme, avec un petit dessin de chaque contour
+  const SH = { rect: '<rect x="4" y="7" width="24" height="18" rx="1"/>', round: '<rect x="4" y="7" width="24" height="18" rx="6"/>', ellipse: '<ellipse cx="16" cy="16" rx="12" ry="9"/>',
+    hex: '<path d="M4 16 10 6h12l6 10-6 10H10z"/>', oct: '<path d="M11 5h10l7 7v8l-7 7H11l-7-7v-8z"/>' };
+  let shape = 'rect';
+  $('#box-shapes').innerHTML = Object.entries(BOX_SHAPES).map(([k, label]) => `<button type="button" data-shape="${k}" class="${k === 'rect' ? 'on' : ''}" role="radio" aria-checked="${k === 'rect'}"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round">${SH[k]}</svg>${label}</button>`).join('');
+  const K = () => (shape === 'hex' ? 1 / Math.cos(Math.PI / 6) : shape === 'oct' ? 1 / Math.cos(Math.PI / 8) : 1);
   const upd = () => {
-    const L = +$('#box-L').value, P = +$('#box-P').value, Hh = +$('#box-H').value, w = +$('#box-wall').value;
-    $('#box-info').innerHTML = `Dimensions extérieures : <b>${r2(L + 2 * w)} × ${r2(P + 2 * w)} × ${r2(Hh + w)} mm</b>` + ($('#box-lid').checked ? ` · couvercle de ${r2(w + 5)} mm de haut` : '') +
-      ((L + 2 * w) > PLATE || (P + 2 * w) > PLATE ? '<br><span class="bad">⚠️ Trop grand pour l’imprimante !</span>' : '');
+    const L = +$('#box-L').value, P = +$('#box-P').value, Hh = +$('#box-H').value, w = +$('#box-wall').value, k = K();
+    const lid = $('#box-lid').checked, skirt = Math.max(0, +$('#box-skirt').value || 0), lip = Math.max(0, +$('#box-lip').value || 0);
+    const ox = L + 2 * w * k, oz = P + 2 * w * k, closed = Hh + w + (lid ? w + skirt : 0);
+    $('#box-lid-opts').hidden = !lid;
+    $('#box-r-wrap').hidden = shape !== 'round';
+    $('#box-info').innerHTML = `Boîte : <b>${r2(ox)} × ${r2(oz)} × ${r2(Hh + w)} mm</b>` +
+      (lid ? `<br>Couvercle : ${r2(w + skirt)} mm de haut${skirt ? ' (bords compris)' : ' (plat)'} + rebord de ${r2(lip)} mm qui rentre` : '') +
+      `<br>Hauteur totale, boîte fermée : <b>${r2(closed)} mm</b>` +
+      (ox > PLATE || oz > PLATE ? '<br><span class="bad">⚠️ Trop grand pour l’imprimante !</span>' : '');
   };
+  $('#box-shapes').addEventListener('click', e => {
+    const b = e.target.closest('[data-shape]'); if (!b) return;
+    shape = b.dataset.shape;
+    $$('#box-shapes button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
+    upd();
+  });
   sel.addEventListener('change', () => { const p = H.BOX_PRESETS.find(x => x.k === sel.value); $('#box-L').value = p.L; $('#box-P').value = p.P; $('#box-H').value = p.H; upd(); });
   $$('#dlg-box input').forEach(i => i.addEventListener('input', upd));
   sel.dispatchEvent(new Event('change'));
   $('#box-ok').addEventListener('click', () => {
     const L = +$('#box-L').value, P = +$('#box-P').value, Hh = +$('#box-H').value, w = Math.max(0.8, +$('#box-wall').value), clr = +$('#box-clr').value;
+    const skirt = Math.max(0, +$('#box-skirt').value || 0), lip = Math.max(0, +$('#box-lip').value || 0), r = shape === 'round' ? Math.max(0, +$('#box-r').value || 0) : 0, k = K();
     if (!(L > 2 && P > 2 && Hh > 2)) return toast('Donne des dimensions intérieures plus grandes que 2 mm.');
     const color = nextColor();
-    const box = newObj('box', { size: { x: L + 2 * w, y: Hh + w, z: P + 2 * w }, params: { wall: w }, color });
+    const box = newObj('box', { size: { x: r2(L + 2 * w * k), y: r2(Hh + w), z: r2(P + 2 * w * k) }, params: { wall: w, shape, r }, color });
     state.objects.push(box); syncMesh(box);
     box.pos.x = -(box.size.x / 2 + 6) * ($('#box-lid').checked ? 1 : 0); syncTransform(box); setMinY(box, 0);
     if ($('#box-lid').checked) {
-      const lid = newObj('lid', { size: { x: box.size.x, y: w + 5, z: box.size.z }, params: { wall: w, clr, boxId: box.id }, color });
+      const lid = newObj('lid', { size: { x: box.size.x, y: r2(w + skirt + lip), z: box.size.z }, params: { wall: w, clr, boxId: box.id, shape, r, skirt }, color });
       state.objects.push(lid); syncMesh(lid); lid.pos.x = box.size.x / 2 + 6; syncTransform(lid); setMinY(lid, 0);
     }
     state.selected = new Set([box]);
@@ -908,9 +1152,10 @@ $('#btn-new').addEventListener('click', () => {
 });
 $('#btn-save').addEventListener('click', () => {
   const name = ($('#proj-name').value.trim() || 'mon-objet').replace(/[\\/:*?"<>|]/g, '-');
-  download(new Blob([JSON.stringify(projectData())], { type: 'application/json' }), `${name}.atelier3d`);
-  emit('save');
-  toast(`💾 Projet enregistré : <b>${name}.atelier3d</b> (dossier Téléchargements). Pour le reprendre : « Ouvrir ».`);
+  askSave(new Blob([JSON.stringify(projectData())], { type: 'application/json' }), `${name}.atelier3d`, 'atelier3d', where => {
+    emit('save');
+    toast(`💾 Projet enregistré ${where}. Pour le reprendre : Fichier → « Ouvrir ».`);
+  });
 });
 $('#btn-open').addEventListener('click', () => $('#file-open').click());
 $('#file-open').addEventListener('change', async e => {
@@ -920,7 +1165,7 @@ $('#file-open').addEventListener('change', async e => {
 });
 $('#proj-name').addEventListener('change', autosave);
 $$('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
-$('#grid-step').addEventListener('change', e => { state.grid = +e.target.value; });
+$('#grid-step').addEventListener('change', e => { state.grid = +e.target.value; syncGizmo(); });
 $$('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
 
 let kbTimer = 0;
@@ -931,9 +1176,12 @@ window.addEventListener('keydown', e => {
   if (ctrl && k === 'y') { e.preventDefault(); return undoRedo(1); }
   if (ctrl && k === 'a') { e.preventDefault(); state.selected = new Set(state.objects.filter(o => o.kind !== 'ghost')); return refreshUI(); }
   if (ctrl && k === 'd') { e.preventDefault(); return duplicateSel(); }
+  if (ctrl && e.shiftKey && k === 'g') { e.preventDefault(); return unmergeSel(); }
   if (ctrl && k === 'g') { e.preventDefault(); return mergeSel(); }
-  if (k === 'escape') { if (state.mode === 'drill') return setMode('select'); if (state.preview) return setPreview(false); return selectOnly(null); }
+  if (k === 'escape') { if (gizmo) { gizmo = null; syncGizmo(); renderCtxbar(); return; } if (state.mode === 'drill') return setMode('select'); if (state.preview) return setPreview(false); return selectOnly(null); }
   if (k === 'p' && !ctrl) return setMode(state.mode === 'drill' ? 'select' : 'drill');
+  if (k === 'm' && !ctrl && sel.length) return setGizmo('translate');
+  if (k === 'r' && !ctrl && sel.length) return setGizmo('rotate');
   if (!sel.length) return;
   if (k === 'delete' || k === 'backspace') { e.preventDefault(); return deleteSel(); }
   if (k === 'd' && !ctrl) return dropSel();
@@ -951,7 +1199,7 @@ window.addEventListener('keydown', e => {
 
 /* ================= Démarrage ================= */
 hydrateIcons(); initSilhouette(); initDrillPanel(); initBoxDialog();
-$('#comp-list').innerHTML = H.COMPONENTS.map(c => `<button data-comp="${c.k}" data-title="${c.name} (repère)" data-help="${esc(c.help)} Il ne sera pas imprimé."><img src="img/composants/${c.k}.png" alt="">${c.name}</button>`).join('');
+$('#comp-list').innerHTML = H.COMPONENTS.map(c => `<button data-comp="${c.k}" data-title="${c.name} (repère)" data-help="${esc(c.help)} Il ne sera pas imprimé."><img src="img/composants/${c.img || c.k}.png" alt="">${c.name}</button>`).join('');
 $$('[data-comp]').forEach(b => b.addEventListener('click', () => addComponent(b.dataset.comp)));
 
 new FontLoader().load('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json', f => {

@@ -316,3 +316,39 @@ button .ico + *, button > .ico { pointer-events: none; }
 .acts button, #props .seg button, .rot button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
 /* L'icône Repère (cube en pointillés) : plus contrastée pour rester lisible en petit */
 img[src$="kind-ghost.png"] { filter: brightness(.55) contrast(1.7); }
+
+/* ================= Poignées d'agrandissement ================= */
+#handles { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+#handles[hidden] { display: none; }
+.hdl { position: absolute; left: 0; top: 0; pointer-events: auto; padding: 0; width: 13px; height: 13px; border-radius: 3px; background: #fff; border: 2px solid #1e293b; box-shadow: 0 1px 3px #0005; touch-action: none; }
+.hdl.corner { cursor: nwse-resize; }
+.hdl.edge { width: 11px; height: 11px; border-radius: 50%; cursor: ew-resize; }
+.hdl.top { width: 14px; height: 14px; border-radius: 50%; background: #f59e0b; border-color: #92400e; cursor: ns-resize; }
+.hdl:hover { background: #fde68a; transform-origin: center; outline: 3px solid #f59e0b55; }
+.cb-sep { width: 1px; height: 22px; background: var(--line); margin: 0 2px; }
+
+/* ================= Assistant Boîte : choix de la forme ================= */
+.box-shapes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.box-shapes button { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11.5px; padding: 6px 2px; color: var(--muted); }
+.box-shapes button svg { width: 34px; height: 34px; color: #64748b; }
+.box-shapes button.on { color: #1e3a8a; } .box-shapes button.on svg { color: var(--accent); fill: #dbeafe; }
+#box-lid-opts[hidden], #box-r-wrap[hidden] { display: none; }
+
+/* ================= Aligner sur 3 axes ================= */
+.align-grid { display: grid; grid-template-columns: auto repeat(3, 1fr); gap: 4px 4px; align-items: center; }
+.align-grid span { font-size: 12px; font-weight: 700; color: var(--ink-soft); padding-right: 4px; white-space: nowrap; }
+.align-grid button { font-size: 12px; padding: 5px 4px; }
+#ctxbar { flex-wrap: wrap; }
+.cb-pop { position: absolute; top: calc(100% + 6px); left: 0; right: 0; min-width: 330px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 10px; white-space: normal; }
+.cb-pop p { margin: 6px 0 0; }
+#ctxbar .cb-pop button { font-size: 12px; border-color: var(--line); }
+
+/* ================= Enregistrer : chemin du dossier d'équipe ================= */
+ol.crumbs { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+ol.crumbs li { display: inline-flex; align-items: center; gap: 5px; background: #fef3c7; border: 1px solid #fcd34d; color: #78350f; font-weight: 800; border-radius: 9px; padding: 5px 9px; font-size: 13.5px; }
+ol.crumbs li .ico { width: 16px; height: 16px; color: #b45309; }
+ol.crumbs li + li::before { content: '›'; margin: 0 4px 0 -2px; color: #b45309; font-size: 18px; order: -1; }
+ol.crumbs li:last-child { background: #dcfce7; border-color: #86efac; color: #14532d; }
+.save-name { display: flex; align-items: center; gap: 4px; }
+.save-name input { flex: 1; }
+#save-fallback[hidden] { display: none; }

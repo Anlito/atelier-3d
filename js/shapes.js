@@ -102,6 +102,40 @@ function loopsToShapes(loops) {
   return outers.map(o => o.sh);
 }
 
+/* ---------- contours de boîte : rectangle, coins arrondis, rond/ovale, hexagone, octogone ---------- */
+export const BOX_SHAPES = { rect: 'Rectangle', round: 'Coins arrondis', ellipse: 'Rond / ovale', hex: 'Hexagone', oct: 'Octogone' };
+// pour les polygones, rentrer la paroi d'une épaisseur w réduit un peu plus la largeur totale
+const insetK = k => (k === 'hex' ? 1 / Math.cos(Math.PI / 6) : k === 'oct' ? 1 / Math.cos(Math.PI / 8) : 1);
+function outline(k, W, D, r = 0) {
+  const s = new THREE.Shape(), hw = W / 2, hd = D / 2;
+  if (k === 'ellipse') { s.absellipse(0, 0, hw, hd, 0, Math.PI * 2, false); return s; }
+  if (k === 'hex' || k === 'oct') {
+    const n = k === 'hex' ? 6 : 8, off = k === 'hex' ? 0 : Math.PI / 8;
+    const pts = Array.from({ length: n }, (_, i) => [Math.cos(off + i * 2 * Math.PI / n), Math.sin(off + i * 2 * Math.PI / n)]);
+    const mx = Math.max(...pts.map(p => Math.abs(p[0]))), my = Math.max(...pts.map(p => Math.abs(p[1])));
+    pts.forEach(([x, y], i) => (i ? s.lineTo : s.moveTo).call(s, x / mx * hw, y / my * hd));
+    s.closePath(); return s;
+  }
+  r = k === 'round' ? Math.max(0, Math.min(r, hw - 0.05, hd - 0.05)) : 0;
+  if (r < 0.05) { s.moveTo(-hw, -hd); s.lineTo(hw, -hd); s.lineTo(hw, hd); s.lineTo(-hw, hd); s.closePath(); return s; }
+  s.moveTo(-hw + r, -hd); s.lineTo(hw - r, -hd); s.absarc(hw - r, -hd + r, r, -Math.PI / 2, 0, false);
+  s.lineTo(hw, hd - r); s.absarc(hw - r, hd - r, r, 0, Math.PI / 2, false);
+  s.lineTo(-hw + r, hd); s.absarc(-hw + r, hd - r, r, Math.PI / 2, Math.PI, false);
+  s.lineTo(-hw, -hd + r); s.absarc(-hw + r, -hd + r, r, Math.PI, Math.PI * 1.5, false);
+  return s;
+}
+/** Bloc plein de contour k, du niveau y0 jusqu'à y0 + h. */
+function prism(k, W, D, h, r, y0) {
+  const g = new THREE.ExtrudeGeometry(outline(k, W, D, r), { depth: h, bevelEnabled: false, curveSegments: 24 });
+  g.rotateX(-Math.PI / 2); g.translate(0, y0, 0);
+  return g;
+}
+/** Paroi : contour (W, D) moins le même contour rentré de t. */
+function ring(k, W, D, t, h, r, y0) {
+  const K = insetK(k);
+  return csg(prism(k, W, D, h, r, y0), prism(k, W - 2 * t * K, D - 2 * t * K, h + 2, Math.max(0, r - t), y0 - 1), SUBTRACTION);
+}
+
 /* ---------- les formes ---------- */
 
 const BUILD = {
@@ -151,22 +185,28 @@ const BUILD = {
     return g;
   },
   // Boîte creuse ouverte en haut : s = dimensions extérieures
+  // Boîte creuse ouverte en haut. s = dimensions extérieures ; p.shape = contour, p.r = rayon des coins
   box: (s, p) => {
-    const w = Math.max(0.4, Math.min(p.wall ?? 2, s.x / 2 - 0.5, s.z / 2 - 0.5, s.y - 0.5));
-    const outer = new THREE.BoxGeometry(s.x, s.y, s.z);
-    const inner = new THREE.BoxGeometry(s.x - 2 * w, s.y, s.z - 2 * w); inner.translate(0, w, 0);
+    const k = p.shape || 'rect', K = insetK(k), r = p.r || 0;
+    const w = Math.max(0.4, Math.min(p.wall ?? 2, s.x / (2 * K) - 0.5, s.z / (2 * K) - 0.5, s.y - 0.5));
+    const outer = prism(k, s.x, s.z, s.y, r, -s.y / 2);
+    const inner = prism(k, s.x - 2 * w * K, s.z - 2 * w * K, s.y, Math.max(0, r - w), -s.y / 2 + w);
     return csg(outer, inner, SUBTRACTION);
   },
-  // Couvercle : plaque + rebord qui rentre dans la boîte (imprimé plaque en bas)
+  // Couvercle, imprimé à l'envers : plaque en bas, éventuellement un bord extérieur (p.skirt),
+  // et le rebord qui rentre dans la boîte (hauteur = ce qui reste de s.y)
   lid: (s, p) => {
-    const w = p.wall ?? 2, clr = p.clr ?? 0.3, t = p.lipT ?? 1.6;
-    const plate = new THREE.BoxGeometry(s.x, w, s.z); plate.translate(0, -s.y / 2 + w / 2, 0);
-    const lipH = s.y - w, ox = s.x - 2 * w - 2 * clr, oz = s.z - 2 * w - 2 * clr;
-    if (lipH < 0.4 || ox < 2 * t + 1 || oz < 2 * t + 1) return plate;
-    const ro = new THREE.BoxGeometry(ox, lipH + 0.1, oz); ro.translate(0, -s.y / 2 + w + lipH / 2 - 0.05, 0);
-    const ri = new THREE.BoxGeometry(ox - 2 * t, lipH + 1, oz - 2 * t); ri.translate(0, -s.y / 2 + w - 0.05 + (lipH + 1) / 2, 0);
-    const ring = csg(ro, ri, SUBTRACTION);
-    return csg(plate, ring, ADDITION);
+    const k = p.shape || 'rect', K = insetK(k), r = p.r || 0;
+    const w = p.wall ?? 2, clr = p.clr ?? 0.3, t = p.lipT ?? 1.6, y0 = -s.y / 2;
+    const skirt = Math.max(0, Math.min(p.skirt || 0, s.y - w));
+    let g = prism(k, s.x, s.z, w + skirt, r, y0);
+    if (skirt > 0.2) g = csg(g, prism(k, s.x - 2 * w * K, s.z - 2 * w * K, skirt + 1, Math.max(0, r - w), y0 + w), SUBTRACTION);
+    const lipH = s.y - w - skirt, inset = (w + clr) * K;
+    const ox = s.x - 2 * inset, oz = s.z - 2 * inset;
+    if (lipH < 0.4 || ox < 2 * t * K + 1 || oz < 2 * t * K + 1) return g;
+    // le rebord part de la plaque (il traverse le bord extérieur) et dépasse de lipH
+    const lip = ring(k, ox, oz, t, skirt + lipH + 0.05, Math.max(0, r - w - clr), y0 + w - 0.05);
+    return csg(g, lip, ADDITION);
   },
   silhouette: (s, p) => {
     const shapes = loopsToShapes(p.loops || []);

@@ -24,6 +24,9 @@ const P = {
   alignx: '<path d="M12 2.5v19"/><rect x="5" y="6" width="14" height="4" rx="1"/><rect x="8" y="14" width="8" height="4" rx="1"/>',
   alignz: '<path d="M2.5 12h19"/><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="8" width="4" height="8" rx="1"/>',
   alignb: '<path d="M3 21h18"/><rect x="5" y="9" width="5" height="10" rx="1"/><rect x="14" y="4" width="5" height="15" rx="1"/>',
+  rot3: '<ellipse cx="12" cy="12" rx="9.5" ry="4"/><ellipse cx="12" cy="12" rx="4" ry="9.5"/><circle cx="12" cy="12" r="1.3"/>',
+  flip: '<path d="M7 3v15M3.5 14.5 7 18l3.5-3.5"/><path d="M17 21V6M13.5 9.5 17 6l3.5 3.5"/>',
+  unmerge: '<rect x="2.5" y="2.5" width="9" height="9" rx="2"/><rect x="12.5" y="12.5" width="9" height="9" rx="2"/><path d="M15 3.5h5.5V9M9 20.5H3.5V15"/>',
   move: '<path d="M12 2.5v19M2.5 12h19M9 5.5l3-3 3 3M9 18.5l3 3 3-3M5.5 9l-3 3 3 3M18.5 9l3 3-3 3"/>',
 };
 /** Une icône en SVG (à mettre dans un gabarit HTML). */
