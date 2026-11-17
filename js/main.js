@@ -1016,7 +1016,7 @@ function initBoxDialog() {
 function newSilhouette() {
   emit('open:silhouette');
   openSilhouette({}, r => {
-    const o = newObj('silhouette', { size: { x: r2(r.w), y: r.thickness, z: r2(r.h) }, params: { loops: r.loops, src: r.src, sheet: r.sheet } });
+    const o = newObj('silhouette', { size: { x: r2(r.w), y: r.thickness, z: r2(r.h) }, params: { loops: r.loops, src: r.src, sheet: r.sheet, fills: r.fills } });
     addObject(o); setView('home');
     flash(`🎭 Ta silhouette mesure ${r2(o.size.x)} × ${r2(o.size.z)} mm et ${r.thickness} mm d’épaisseur. Perce le trou de la baguette avec <b>🔩 Percer</b>. Pour la corriger : double-clic dessus.`);
   }, () => emit('draw'));
@@ -1024,8 +1024,8 @@ function newSilhouette() {
 function editSilhouette(o) {
   emit('open:silhouette');
   // anciennes silhouettes (sans taille de feuille) : la hauteur du dessin donnait la hauteur de la pièce
-  openSilhouette({ src: o.params.src, sheet: o.params.sheet, fitHeight: o.params.sheet ? null : o.size.z, thickness: o.size.y, edit: true }, r => {
-    o.params.loops = r.loops; o.params.src = r.src; o.params.sheet = r.sheet;
+  openSilhouette({ src: o.params.src, fills: o.params.fills, sheet: o.params.sheet, fitHeight: o.params.sheet ? null : o.size.z, thickness: o.size.y, edit: true }, r => {
+    o.params.loops = r.loops; o.params.src = r.src; o.params.sheet = r.sheet; o.params.fills = r.fills;
     o.size = { x: r2(r.w), y: r.thickness, z: r2(r.h) };
     const b0 = worldBox(o).min.y; syncMesh(o); setMinY(o, b0); pushHistory(); refreshUI();
     flash('✏️ Silhouette mise à jour. Les trous percés dessus sont restés à leur place : vérifie qu’ils tombent toujours au bon endroit.');

@@ -183,7 +183,7 @@ export const GUIDE = [
     <p>L’atelier Silhouette transforme un <b>dessin noir et blanc</b> en pièce plate, <b>à la taille réelle</b> de ton dessin sur la feuille.</p>
     <ul><li>Choisis l’<b>épaisseur du trait</b> en mm (1,7 mm, c’est bien) : tous tes traits auront exactement cette épaisseur.</li>
     <li><b>Libre</b> pour dessiner à main levée, <b>Droit</b> pour un trait droit (Maj : horizontal, vertical ou 45°), <b>Courbe</b> (glisse, puis bouge la souris pour courber, puis clique), <b>Cercle</b> et <b>Rectangle</b>.</li>
-    <li><b>Remplir</b> : clique dans une zone fermée pour la noircir. Les zones blanches à l’intérieur deviennent des trous (yeux, motifs).</li>
+    <li><b>Remplir</b> : clique dans une zone fermée pour la noircir. Les zones blanches à l’intérieur deviennent des trous (yeux, motifs). Reclique dans la zone remplie pour la <b>déremplir</b> : tes traits réapparaissent.</li>
     <li><b>Zoomer</b> avec la molette de la souris (là où est la souris) ; <b>faire défiler la feuille</b> en glissant avec le clic droit, ou Espace + glisser, ou l’outil <b>Main</b>. Touche 0 : toute la feuille.</li>
     <li><b>Gomme</b> : le cercle rouge montre exactement ce qui sera effacé.</li>
     <li><b>Déplacer</b> : clique sur un trait ou une forme et glisse ; tout ce qui se touche bouge ensemble. Ctrl + glisser pour copier, flèches du clavier pour ajuster au millimètre, Suppr pour effacer.</li>

@@ -7,6 +7,12 @@ let drag = null;          // geste en cours : { tool, a, b, phase }
 let cursor = null;        // dernière position de la souris (pour l'aperçu)
 // Vue de la feuille : zoom à la molette, déplacement (clic droit, clic molette, Espace ou outil Main)
 let gv, gctx, ovPending = false;
+// Mémoire des remplissages : pour chaque point, le numéro du remplissage qui l'a noirci (0 = trait ou rien).
+// Elle permet de « déremplir » une zone en gardant les traits. Copiée seulement quand elle change (l'historique en garde des versions).
+let fm = new Uint8Array(W * H), fmShared = false, fillN = 0, maskDirty = false, mctx = null;
+const fmw = () => { if (fmShared) { fm = fm.slice(); fmShared = false; } return fm; };
+const fmReset = () => { fm = new Uint8Array(W * H); fmShared = false; };
+const nextFill = () => (fillN = fillN % 255 + 1);
 let picked = null; // dernière forme déplacée : { fc (noir), wc (blanc), x, y, w, h } pour les flèches du clavier et Suppr
 let board, stage, zoom = 1, panX = 0, panY = 0, base = 600, pan = null, space = false;
 
@@ -24,6 +30,7 @@ export function initSilhouette() {
   ctx = cv.getContext('2d');
   gv = $('#sil-gridc'); gv.width = W; gv.height = H; gctx = gv.getContext('2d');
   ov = $('#sil-overlay'); ov.width = W; ov.height = H; octx = ov.getContext('2d');
+  const mc = document.createElement('canvas'); mc.width = W; mc.height = H; mctx = mc.getContext('2d');
   clear();
   document.querySelectorAll('[data-sil-tool]').forEach(b => b.addEventListener('click', () => {
     tool = b.dataset.silTool; drag = null; picked = null;
@@ -38,10 +45,11 @@ export function initSilhouette() {
   $('#sil-undo').addEventListener('click', () => {
     const d = undo.pop(); if (!d) return; picked = null;
     ctx.putImageData(d.img, 0, 0);
+    fm = d.fm; fmShared = undo.some(u => u.fm === fm); maskDirty = false; mctx?.clearRect(0, 0, W, H);
     if (d.sheet !== sheet) { sheet = d.sheet; $('#sil-sheet').value = sheet; gridKey = ''; overlay(); }
     info();
   });
-  $('#sil-clear').addEventListener('click', () => { picked = null; pushUndo(); clear(); orig = null; $('#sil-imgopts').hidden = true; info(); });
+  $('#sil-clear').addEventListener('click', () => { picked = null; pushUndo(); clear(); fmReset(); orig = null; $('#sil-imgopts').hidden = true; info(); });
   $('#sil-import').addEventListener('click', () => $('#sil-file').click());
   $('#sil-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importImage(f); e.target.value = ''; });
   $('#sil-thr').addEventListener('input', applyThreshold);
@@ -55,7 +63,7 @@ export function initSilhouette() {
     if (picked && tool === 'move' && !drag) {
       const st = (e.shiftKey ? 5 : 1) / mmPerPx(), dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
       if (dir) { e.preventDefault(); pushUndo(); nudge(dir[0] * st, dir[1] * st); return; }
-      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); pushUndo(); ctx.drawImage(picked.wc, picked.x, picked.y); picked = null; overlay(); info(); onDraw?.(); return; }
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); pushUndo(); ctx.drawImage(picked.wc, picked.x, picked.y); writeIds(picked, true); picked = null; overlay(); info(); onDraw?.(); return; }
     }
     if (e.code === 'Space') { e.preventDefault(); if (!space) { space = true; setCursor(); overlay(); } }
     if (e.key === '+' || e.key === '=') zoomAt(null, null, 1.25);
@@ -97,7 +105,7 @@ export function initSilhouette() {
       pushUndo(); stroke(path('curve', drag.a, drag.b, p)); drag = null; overlay(); onDraw?.(); info(); return;
     }
     if (tool === 'move') { startMove(p, e.ctrlKey || e.altKey); if (drag) cv.setPointerCapture(e.pointerId); return; }
-    if (tool === 'fill') { pushUndo(); flood(p[0] | 0, p[1] | 0); if (sym) flood((W - 1 - p[0]) | 0, p[1] | 0); onDraw?.(); info(); return; }
+    if (tool === 'fill') { pushUndo(); fillAt(p[0] | 0, p[1] | 0); onDraw?.(); info(); return; }
     cv.setPointerCapture(e.pointerId);
     if (tool === 'free' || tool === 'eraser') { pushUndo(); drag = { tool, last: p }; stroke(path('line', p, p)); return; }
     drag = { tool, a: p, b: p, phase: 'drag' };
@@ -146,11 +154,21 @@ export function openSilhouette(opts, done, draw) {
   $('#sil-imgopts').hidden = true;
   sheet = opts.sheet || 150; $('#sil-sheet').value = sheet; gridKey = ''; picked = null;
   $('#sil-t').value = opts.thickness || 2;
-  clear();
+  clear(); fmReset(); fillN = 0; maskDirty = false; mctx.clearRect(0, 0, W, H);
   if (opts.src) {
     const im = new Image();
     im.onload = () => {
       ctx.drawImage(im, 0, 0, W, H);
+      if (opts.fills) { // la mémoire des remplissages, enregistrée dans une image (le rouge = numéro)
+        const fi = new Image();
+        fi.onload = () => {
+          const c = document.createElement('canvas'); c.width = W; c.height = H;
+          const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(fi, 0, 0, W, H);
+          const d = g.getImageData(0, 0, W, H).data;
+          for (let i = 0; i < W * H; i++) { fm[i] = d[i * 4]; if (d[i * 4] > fillN) fillN = d[i * 4]; }
+        };
+        fi.src = opts.fills;
+      }
       // ancienne silhouette : on retrouve la taille de feuille qui redonne la même hauteur de pièce
       if (!opts.sheet && opts.fitHeight) { const { bh, empty } = binarize(); if (!empty) { sheet = Math.round(opts.fitHeight * W / bh); $('#sil-sheet').value = sheet; gridKey = ''; } }
       overlay(); info();
@@ -223,16 +241,31 @@ function lift(p, copy) {
   }
   const w = maxx - minx + 1, h = maxy - miny + 1;
   const mk = () => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
-  const fc = mk(), wc = mk(), fi = new ImageData(w, h), wi = new ImageData(w, h);
+  const fc = mk(), wc = mk(), fi = new ImageData(w, h), wi = new ImageData(w, h), ids = new Uint8Array(w * h);
+  flushMask();
+  const f = fmw(), renum = new Map(); // une copie reçoit ses propres numéros de remplissage
   for (const i of list) {
     const x = i % W - minx, y = ((i / W) | 0) - miny, o = (y * w + x) * 4;
+    if (f[i]) {
+      if (copy) { if (!renum.has(f[i])) renum.set(f[i], nextFill()); ids[y * w + x] = renum.get(f[i]); }
+      else { ids[y * w + x] = f[i]; f[i] = 0; }
+    }
     fi.data[o + 3] = 255 - lum(i) / 3;                                          // noir, avec ses bords adoucis
     wi.data[o] = wi.data[o + 1] = wi.data[o + 2] = 255; wi.data[o + 3] = 255;   // de quoi l'effacer
     if (!copy) d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = 255;
   }
   fc.getContext('2d').putImageData(fi, 0, 0); wc.getContext('2d').putImageData(wi, 0, 0);
   if (!copy) ctx.putImageData(id, 0, 0);
-  return { fc, wc, x: minx, y: miny, w, h };
+  return { fc, wc, ids, x: minx, y: miny, w, h };
+}
+/** Écrit (ou efface) les numéros de remplissage de la forme à sa place actuelle. */
+function writeIds(sel, erase) {
+  const f = fmw();
+  for (let y = 0; y < sel.h; y++) for (let x = 0; x < sel.w; x++) {
+    const n = sel.ids[y * sel.w + x]; if (!n) continue;
+    const X = sel.x + x, Y = sel.y + y; if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+    if (erase) { if (f[Y * W + X] === n) f[Y * W + X] = 0; } else f[Y * W + X] = n;
+  }
 }
 function startMove(p, copy) {
   pushUndo();
@@ -245,19 +278,19 @@ function startMove(p, copy) {
 function endMove() {
   const { sel, dx, dy } = drag; drag = null;
   sel.x = Math.round(sel.x + dx); sel.y = Math.round(sel.y + dy);
-  ctx.drawImage(sel.fc, sel.x, sel.y);
+  ctx.drawImage(sel.fc, sel.x, sel.y); writeIds(sel);
   if (!dx && !dy) undo.pop(); // simple clic : la forme est juste choisie
   picked = sel; overlay(); info(); onDraw?.();
 }
 function cancelMove() {
   const { sel, copy } = drag; drag = null;
-  if (!copy) ctx.drawImage(sel.fc, sel.x, sel.y);
+  if (!copy) { ctx.drawImage(sel.fc, sel.x, sel.y); writeIds(sel); }
   undo.pop(); picked = null; overlay();
 }
 function nudge(dx, dy) {
-  ctx.drawImage(picked.wc, picked.x, picked.y);
+  ctx.drawImage(picked.wc, picked.x, picked.y); writeIds(picked, true);
   picked.x = Math.max(0, Math.min(W - picked.w, Math.round(picked.x + dx))); picked.y = Math.max(0, Math.min(H - picked.h, Math.round(picked.y + dy)));
-  ctx.drawImage(picked.fc, picked.x, picked.y);
+  ctx.drawImage(picked.fc, picked.x, picked.y); writeIds(picked);
   overlay(); info(); onDraw?.();
 }
 function setCursor() {
@@ -312,6 +345,14 @@ function paint(g, draw, color, width) {
 function stroke(draw) {
   const eraser = drag?.tool === 'eraser' || (!drag && tool === 'eraser');
   paint(ctx, draw, eraser ? '#fff' : '#000', eraser ? eraserPx() : strokePx());
+  if (!eraser && fillN) { paint(mctx, draw, '#000', strokePx() + 2); maskDirty = true; }
+}
+/** Les points couverts par les derniers traits ne font plus partie d'un remplissage. */
+function flushMask() {
+  if (!maskDirty) return; maskDirty = false;
+  const d = mctx.getImageData(0, 0, W, H).data, f = fmw();
+  for (let i = 0; i < W * H; i++) if (d[i * 4 + 3]) f[i] = 0;
+  mctx.clearRect(0, 0, W, H);
 }
 
 /* ---------- calque d'aide : quadrillage, axe de symétrie, aperçu du tracé ---------- */
@@ -373,7 +414,7 @@ function drawCursorLayer() {
 
 /* ---------- remplissage, image importée ---------- */
 function clear() { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); }
-function pushUndo() { undo.push({ img: ctx.getImageData(0, 0, W, H), sheet }); if (undo.length > 30) undo.shift(); }
+function pushUndo() { flushMask(); undo.push({ img: ctx.getImageData(0, 0, W, H), sheet, fm }); fmShared = true; if (undo.length > 30) undo.shift(); }
 /**
  * Change la taille de la feuille SANS changer la taille réelle du dessin :
  * plus grande feuille = plus de place autour (le dessin paraît plus petit), et l'inverse.
@@ -407,26 +448,57 @@ function setSheet(v) {
   const id = ctx.getImageData(0, 0, W, H), d = id.data;
   for (let i = 0; i < d.length; i += 4) { const v2 = d[i] + d[i + 1] + d[i + 2] < 384 ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = v2; d[i + 3] = 255; }
   ctx.putImageData(id, 0, 0);
+  if (fm.some(Boolean)) { // même agrandissement / réduction pour la mémoire des remplissages
+    const old = fm, nf = new Uint8Array(W * H), c0 = (W - W * k) / 2;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const sx = Math.floor((x + 0.5 - c0) / k), sy = Math.floor((y + 0.5 - c0) / k);
+      if (sx >= 0 && sy >= 0 && sx < W && sy < H && d[(y * W + x) * 4] === 0) nf[y * W + x] = old[sy * W + sx];
+    }
+    fm = nf; fmShared = false;
+  }
   sheet = v; $('#sil-sheet').value = v;
   overlay(); info(); onDraw?.();
 }
-function flood(x, y) {
+/**
+ * Clic avec Remplir :
+ * - dans du blanc : remplit la zone de noir (et retient ce remplissage) ;
+ * - dans une zone remplie : la « dérempli » et les traits réapparaissent ;
+ * - dans du noir qui n'a jamais été rempli (trait, image importée) : vide toute la zone noire.
+ */
+function fillAt(x, y) {
   if (x < 0 || y < 0 || x >= W || y >= H) return;
+  flushMask();
+  const i0 = y * W + x;
   const id = ctx.getImageData(0, 0, W, H), d = id.data;
+  const dark = i => d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2] < 384;
+  if (dark(i0) && fm[i0]) {
+    const n = fm[i0], f = fmw();
+    for (let i = 0; i < W * H; i++) if (f[i] === n) { f[i] = 0; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = 255; }
+    ctx.putImageData(id, 0, 0);
+    $('#sil-msg').textContent = '';
+    return;
+  }
+  const n = dark(i0) ? 0 : nextFill();
+  flood(x, y, n, id);
+  if (sym) flood(W - 1 - x, y, n, id);
+  ctx.putImageData(id, 0, 0);
+}
+function flood(x, y, n, id) {
+  if (x < 0 || y < 0 || x >= W || y >= H) return;
+  const d = id.data, f = fmw();
   const dark = i => d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2] < 384;
   const start = y * W + x, target = dark(start), val = target ? 255 : 0; // blanc -> noir, ou noir -> blanc
   const seen = new Uint8Array(W * H), stack = [start];
   while (stack.length) {
     const i = stack.pop();
     if (seen[i] || dark(i) !== target) continue;
-    seen[i] = 1; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = val; d[i * 4 + 3] = 255;
+    seen[i] = 1; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = val; d[i * 4 + 3] = 255; f[i] = n;
     const px = i % W;
     if (px > 0) stack.push(i - 1);
     if (px < W - 1) stack.push(i + 1);
     if (i >= W) stack.push(i - W);
     if (i < W * (H - 1)) stack.push(i + W);
   }
-  ctx.putImageData(id, 0, 0);
 }
 function importImage(file) {
   const url = URL.createObjectURL(file), img = new Image();
@@ -453,7 +525,7 @@ function applyThreshold() {
     if (inv) dark = !dark;
     d[i] = d[i + 1] = d[i + 2] = dark ? 0 : 255; d[i + 3] = 255;
   }
-  ctx.putImageData(id, 0, 0); info();
+  ctx.putImageData(id, 0, 0); fmReset(); info();
 }
 function binarize() {
   const d = ctx.getImageData(0, 0, W, H).data, bin = new Uint8Array(W * H);
@@ -543,5 +615,13 @@ function finish() {
   const mm = mmPerPx(), t = Math.max(0.4, +$('#sil-t').value || 2);
   $('#dlg-sil').close();
   // la pièce garde la taille réelle du dessin sur la feuille
-  onDone?.({ loops, src: cv.toDataURL('image/png'), w: bw * mm, h: bh * mm, thickness: t, sheet: sheetMm() });
+  flushMask();
+  let fills = null;
+  if (fm.some(Boolean)) {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d'), im = g.createImageData(W, H);
+    for (let i = 0; i < W * H; i++) { im.data[i * 4] = fm[i]; im.data[i * 4 + 3] = 255; }
+    g.putImageData(im, 0, 0); fills = c.toDataURL('image/png');
+  }
+  onDone?.({ loops, fills, src: cv.toDataURL('image/png'), w: bw * mm, h: bh * mm, thickness: t, sheet: sheetMm() });
 }
