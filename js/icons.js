@@ -27,6 +27,12 @@ const P = {
   rot3: '<ellipse cx="12" cy="12" rx="9.5" ry="4"/><ellipse cx="12" cy="12" rx="4" ry="9.5"/><circle cx="12" cy="12" r="1.3"/>',
   flip: '<path d="M7 3v15M3.5 14.5 7 18l3.5-3.5"/><path d="M17 21V6M13.5 9.5 17 6l3.5 3.5"/>',
   unmerge: '<rect x="2.5" y="2.5" width="9" height="9" rx="2"/><rect x="12.5" y="12.5" width="9" height="9" rx="2"/><path d="M15 3.5h5.5V9M9 20.5H3.5V15"/>',
+  line: '<path d="M4 20 20 4"/><circle cx="4" cy="20" r="1.6"/><circle cx="20" cy="4" r="1.6"/>',
+  curve: '<path d="M4 19C6 8 18 16 20 5"/><circle cx="4" cy="19" r="1.6"/><circle cx="20" cy="5" r="1.6"/>',
+  rect: '<rect x="3.5" y="5.5" width="17" height="13" rx="1"/>',
+  ellipse: '<ellipse cx="12" cy="12" rx="9" ry="7"/>',
+  grid: '<path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"/>',
+  magnet: '<path d="M6 3v8a6 6 0 0 0 12 0V3"/><path d="M6 7h4M14 7h4M10 3v8a2 2 0 0 0 4 0V3"/>',
   move: '<path d="M12 2.5v19M2.5 12h19M9 5.5l3-3 3 3M9 18.5l3 3 3-3M5.5 9l-3 3 3 3M18.5 9l3 3-3 3"/>',
 };
 /** Une icône en SVG (à mettre dans un gabarit HTML). */

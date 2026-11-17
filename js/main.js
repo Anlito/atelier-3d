@@ -229,6 +229,7 @@ function renderCtxbar() {
     <span class="cb-sep"></span>
     <button data-act="dup" data-title="⧉ Dupliquer (Ctrl + D)" data-help="Fait une copie juste à côté.">${ic('copy')}</button>
     ${o.kind === 'solid' ? `<button data-act="drill" data-title="🔩 Percer" data-help="Ouvre l’outil Percer pour faire un trou dans cette pièce."><img class="ki" src="img/outils/drill.png" alt=""></button>` : ''}
+    ${o.type === 'silhouette' ? `<button data-act="edit-sil" data-title="✏️ Modifier le dessin" data-help="Rouvre l’atelier Silhouette avec ton dessin pour le corriger. Astuce : double-clic sur la pièce.">${ic('pencil')}</button>` : ''}
     ${o.type === 'custom' && o.params.src ? `<button data-act="unmerge" data-title="✂️ Défusionner (Ctrl + Maj + G)" data-help="Sépare la pièce fusionnée : les objets d’origine reviennent, à leur place.">${ic('unmerge')}</button>` : ''}
     <button data-act="del" class="danger" data-title="🗑 Supprimer (Suppr)" data-help="Supprime l’objet. Ctrl + Z pour le récupérer.">${ic('trash')}</button>`;
 }
@@ -448,6 +449,13 @@ function pick(e, filter) {
 }
 
 let press = null, hoverObj = null;
+// Double-clic sur une silhouette : on rouvre son dessin
+view.addEventListener('dblclick', e => {
+  if (e.target !== renderer.domElement || state.mode === 'drill') return;
+  const h = pick(e), o = h?.object.userData.obj;
+  if (o?.type === 'silhouette') editSilhouette(o);
+  else if (o?.type === 'custom' && o.params.src?.some(s => s.type === 'silhouette')) toast('Cette silhouette a été fusionnée : clique d’abord sur « Défusionner », puis double-clique sur la silhouette.');
+});
 view.addEventListener('pointerdown', e => {
   if (e.target !== renderer.domElement || e.button !== 0) return;
   if (tc.object && tc.axis) { controls.enabled = false; return; } // on attrape une flèche ou un anneau 3D
@@ -986,15 +994,19 @@ function initBoxDialog() {
 function newSilhouette() {
   emit('open:silhouette');
   openSilhouette({}, r => {
-    const o = newObj('silhouette', { size: { x: r2(r.height * r.aspect), y: r.thickness, z: r.height }, params: { loops: r.loops, src: r.src } });
+    const o = newObj('silhouette', { size: { x: r2(r.w), y: r.thickness, z: r2(r.h) }, params: { loops: r.loops, src: r.src, sheet: r.sheet } });
     addObject(o); setView('home');
-    flash(`🎭 Ta silhouette mesure ${r2(o.size.z)} mm de haut et ${r.thickness} mm d’épaisseur. Perce le trou de la baguette avec <b>🔩 Percer</b>.`);
+    flash(`🎭 Ta silhouette mesure ${r2(o.size.x)} × ${r2(o.size.z)} mm et ${r.thickness} mm d’épaisseur. Perce le trou de la baguette avec <b>🔩 Percer</b>. Pour la corriger : double-clic dessus.`);
   }, () => emit('draw'));
 }
 function editSilhouette(o) {
-  openSilhouette({ src: o.params.src, height: o.size.z, thickness: o.size.y, edit: true }, r => {
-    o.params.loops = r.loops; o.params.src = r.src; o.size = { x: r2(r.height * r.aspect), y: r.thickness, z: r.height };
+  emit('open:silhouette');
+  // anciennes silhouettes (sans taille de feuille) : la hauteur du dessin donnait la hauteur de la pièce
+  openSilhouette({ src: o.params.src, sheet: o.params.sheet, fitHeight: o.params.sheet ? null : o.size.z, thickness: o.size.y, edit: true }, r => {
+    o.params.loops = r.loops; o.params.src = r.src; o.params.sheet = r.sheet;
+    o.size = { x: r2(r.w), y: r.thickness, z: r2(r.h) };
     const b0 = worldBox(o).min.y; syncMesh(o); setMinY(o, b0); pushHistory(); refreshUI();
+    flash('✏️ Silhouette mise à jour. Les trous percés dessus sont restés à leur place : vérifie qu’ils tombent toujours au bon endroit.');
   }, () => emit('draw'));
 }
 function addComponent(k) {

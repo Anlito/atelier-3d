@@ -89,7 +89,7 @@ export const MISSIONS = [
     id: 'ombre', icon: '🎭', title: 'Théâtre d’ombre : mon personnage', desc: 'Dessine ou importe une silhouette, elle devient une pièce de 2 mm d’épaisseur prête à imprimer.',
     steps: [
       { t: 'Ouvre l’atelier Silhouette', h: 'Clique sur « Silhouette » dans les Outils magiques.', sel: '#tool-silhouette', ok: c => c.ev.has('open:silhouette') },
-      { t: 'Dessine ton personnage en noir (ou importe une image)', h: 'Pinceau pour le contour, puis le pot de peinture pour remplir l’intérieur. Tout ce qui est NOIR sera en plastique. Les zones blanches à l’intérieur deviennent des trous (yeux, décors…).', ok: c => c.ev.has('draw') || c.ev.has('add:silhouette') },
+      { t: 'Dessine ton personnage en noir (ou importe une image)', h: 'Trace le contour avec les outils Libre, Droit, Courbe ou Cercle (trait de 1,7 mm), puis « Remplir » l’intérieur. Tout ce qui est NOIR sera en plastique. Les zones blanches à l’intérieur deviennent des trous (yeux, décors…). Le quadrillage t’aide pour les tailles : un carreau = 5 mm.', ok: c => c.ev.has('draw') || c.ev.has('add:silhouette') },
       { t: 'Choisis 2 mm d’épaisseur et crée la pièce', h: 'Dans l’atelier, règle « Épaisseur » sur 2 mm puis clique sur « Créer la pièce 3D ».', ok: c => c.objs.some(o => o.type === 'silhouette') },
       { t: 'Vérifie la taille de ton personnage', h: 'Sélectionne-le : la « Profondeur » est sa hauteur sur l’écran du théâtre. Entre 80 et 200 mm, c’est bien. Coche « Garder les proportions » avant de changer un nombre.', ok: c => c.objs.some(o => o.type === 'silhouette' && Math.max(o.size.x, o.size.z) >= 60 && Math.max(o.size.x, o.size.z) <= 210) },
       { t: 'Perce le trou de la baguette', h: 'Outil « Percer » → choisis « Baguette du théâtre d’ombre », puis clique sur ton personnage, près du bas.', sel: '#tool-drill', ok: c => c.ev.has('drill') },
@@ -180,11 +180,14 @@ export const GUIDE = [
     <p><b>Hauteur du couvercle</b> : 0 = couvercle plat ; plus grand = le couvercle a des bords, la boîte se ferme comme deux moitiés.</p><p>Le couvercle est posé à l’envers (plaque en bas) : c’est le bon sens pour l’imprimer.</p>
     <p>Pour placer tes composants, ajoute des <b>repères</b> (Arduino, boutons…) et active <b>Rayons X</b>.</p>` },
   { t: '✂️ Silhouette (théâtre d’ombre)', h: `
-    <p>L’atelier Silhouette transforme un <b>dessin noir et blanc</b> en pièce plate.</p>
-    <ul><li><b>Pinceau</b> pour dessiner, <b>Gomme</b> pour corriger, <b>Pot de peinture</b> pour remplir une zone fermée.</li>
-    <li><b>Symétrie</b> : ce que tu dessines à gauche apparaît à droite (pratique pour un visage, un papillon…).</li>
-    <li><b>Importer une image</b> : une photo ou un dessin scanné. Règle le curseur « Seuil » pour bien séparer le noir du blanc.</li></ul>
-    <p>Le noir devient du plastique, le blanc à l’intérieur devient des trous (yeux, motifs). Évite les traits trop fins : moins de 1,5 mm, ça casse.</p>` },
+    <p>L’atelier Silhouette transforme un <b>dessin noir et blanc</b> en pièce plate, <b>à la taille réelle</b> de ton dessin sur la feuille.</p>
+    <ul><li>Choisis l’<b>épaisseur du trait</b> en mm (1,7 mm, c’est bien) : tous tes traits auront exactement cette épaisseur.</li>
+    <li><b>Libre</b> pour dessiner à main levée, <b>Droit</b> pour un trait droit (Maj : horizontal, vertical ou 45°), <b>Courbe</b> (glisse, puis bouge la souris pour courber, puis clique), <b>Cercle</b> et <b>Rectangle</b>.</li>
+    <li><b>Remplir</b> : clique dans une zone fermée pour la noircir. Les zones blanches à l’intérieur deviennent des trous (yeux, motifs).</li>
+    <li><b>Quadrillage</b> : un carreau = 5 mm. <b>Aimanter</b> accroche les traits aux carreaux.</li>
+    <li><b>Symétrie</b> : ce que tu dessines d’un côté apparaît aussi de l’autre côté.</li>
+    <li><b>Importer une image</b> : règle le « Seuil » pour bien séparer le noir du blanc.</li></ul>
+    <p>Pour corriger plus tard : <b>double-clic</b> sur la silhouette (ou bouton ✏️ <b>Modifier le dessin</b>).</p>` },
   { t: '🔗 Fusionner et aligner', h: `
     <p>Sélectionne plusieurs objets : <b>Maj + clic</b> sur chacun, ou <b>Ctrl + A</b> pour tout prendre.</p>
     <p><b>Fusionner</b> en fait une seule pièce : la matière se colle, les trous sélectionnés creusent. Pour les séparer plus tard : sélectionne la pièce et clique <b>Défusionner</b> (Ctrl + Maj + G) ; les objets reviennent à leur place.</p>

@@ -187,13 +187,21 @@
 <!-- Atelier Silhouette -->
 <dialog id="dlg-sil" class="dlg wide">
   <h2><img src="img/outils/silhouette.png" alt=""> Atelier Silhouette</h2>
-  <p class="lead">Dessine en <b>noir</b> ce qui sera en plastique. Le blanc à l’intérieur devient des trous (yeux, motifs…).</p>
+  <p class="lead">Trace les <b>contours</b> avec un trait d’épaisseur fixe, puis <b>remplis</b> les zones : tout ce qui est <b>noir</b> sera en plastique, le blanc à l’intérieur devient des trous.</p>
   <div class="sil-wrap">
     <div class="sil-tools">
-      <button data-sil-tool="brush" class="on" data-title="Pinceau" data-help="Dessine en noir."><img src="img/dessin/brush.png" alt=""> Pinceau</button>
-      <button data-sil-tool="eraser" data-title="Gomme" data-help="Efface (dessine en blanc)."><img src="img/dessin/eraser.png" alt=""> Gomme</button>
-      <button data-sil-tool="fill" data-title="Pot de peinture" data-help="Clique à l’intérieur d’un contour fermé pour le remplir de noir."><img src="img/dessin/fill.png" alt=""> Remplir</button>
-      <label>Taille du pinceau<input id="sil-size" type="range" min="2" max="70" value="16"></label>
+      <div class="sil-grid-tools">
+        <button data-sil-tool="free" class="on" data-title="Trait libre" data-help="Dessine à main levée, avec l’épaisseur de trait choisie."><img src="img/dessin/brush.png" alt=""> Libre</button>
+        <button data-sil-tool="line" data-title="Trait droit" data-help="Clique, glisse, relâche : un trait bien droit. Maintiens Maj pour un trait horizontal, vertical ou à 45°."><i data-ic="line"></i> Droit</button>
+        <button data-sil-tool="curve" data-title="Courbe" data-help="1. Glisse du début à la fin de la courbe. 2. Bouge la souris pour la courber. 3. Clique pour la poser. (Échap pour annuler)"><i data-ic="curve"></i> Courbe</button>
+        <button data-sil-tool="ellipse" data-title="Cercle / ovale" data-help="Glisse pour tracer un cercle ou un ovale (contour). Maj : un cercle parfait."><i data-ic="ellipse"></i> Cercle</button>
+        <button data-sil-tool="rect" data-title="Rectangle" data-help="Glisse pour tracer un rectangle (contour). Maj : un carré."><i data-ic="rect"></i> Rectangle</button>
+        <button data-sil-tool="fill" data-title="Remplir" data-help="Clique à l’intérieur d’un contour fermé pour le remplir de noir. Clique dans du noir pour le vider."><img src="img/dessin/fill.png" alt=""> Remplir</button>
+        <button data-sil-tool="eraser" data-title="Gomme" data-help="Efface à main levée (3 fois plus large que le trait)."><img src="img/dessin/eraser.png" alt=""> Gomme</button>
+      </div>
+      <label class="num" data-title="Épaisseur du trait" data-help="L’épaisseur réelle, en mm, de tous les traits une fois imprimés. 1,5 mm minimum pour que ça ne casse pas."><span>Épaisseur du trait (mm)</span><input id="sil-w" type="number" value="1.7" step="0.1" min="0.5"></label>
+      <label class="chk" data-title="Quadrillage" data-help="Affiche des carreaux de 5 mm (traits plus foncés tous les 10 mm) pour mesurer. Il n’est pas imprimé."><input type="checkbox" id="sil-grid" checked> <i data-ic="grid"></i> Quadrillage</label>
+      <label class="chk" data-title="Aimant" data-help="Les traits droits, courbes et formes s’accrochent aux carreaux du quadrillage (tous les 5 mm)."><input type="checkbox" id="sil-snap"> <i data-ic="magnet"></i> Aimanter</label>
       <label class="chk" data-title="Symétrie" data-help="Ce que tu dessines d’un côté apparaît aussi de l’autre côté, comme dans un miroir."><input type="checkbox" id="sil-sym"> <img src="img/dessin/symmetry.png" alt=""> Symétrie</label>
       <button id="sil-undo"><img src="img/dessin/undo.png" alt=""> Annuler</button>
       <button id="sil-clear" class="danger"><i data-ic="trash"></i> Tout effacer</button>
@@ -205,9 +213,9 @@
         <label class="chk"><input type="checkbox" id="sil-inv"> Inverser noir et blanc</label>
       </div>
     </div>
-    <canvas id="sil-canvas"></canvas>
+    <div class="sil-board"><canvas id="sil-canvas"></canvas><canvas id="sil-overlay"></canvas><div id="sil-pos" hidden></div></div>
     <div class="sil-side">
-      <label class="num"><span>Hauteur du dessin (mm)</span><input id="sil-h" type="number" value="120" step="5"></label>
+      <label class="num" data-title="Taille de la feuille" data-help="La feuille de dessin est un carré de cette taille, en vrai. Ta pièce garde exactement la taille de ton dessin sur la feuille."><span>Taille de la feuille (mm)</span><input id="sil-sheet" type="number" value="150" step="10" min="20"></label>
       <label class="num"><span>Épaisseur (mm)</span><input id="sil-t" type="number" value="2" step="0.5"></label>
       <label data-title="Lissage" data-help="Plus c’est lissé, plus les bords sont doux (et le fichier léger). Moins c’est lissé, plus les détails sont fidèles.">Lissage des bords<input id="sil-smooth" type="range" min="0.5" max="4" step="0.1" value="1.2"></label>
       <p id="sil-info" class="info"></p>

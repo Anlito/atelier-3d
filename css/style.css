@@ -352,3 +352,26 @@ ol.crumbs li:last-child { background: #dcfce7; border-color: #86efac; color: #14
 .save-name { display: flex; align-items: center; gap: 4px; }
 .save-name input { flex: 1; }
 #save-fallback[hidden] { display: none; }
+
+/* La bulle d'aide flotte au-dessus de l'assistant : elle ne pousse plus le reste de la colonne
+   (sinon la colonne bouge, la souris change d'élément, et tout « tremble »). */
+#assistant { position: relative; }
+#as-hover { position: absolute; left: 10px; right: 10px; top: 46px; z-index: 5; margin: 0; pointer-events: none; box-shadow: 0 8px 24px #4338ca33; }
+
+/* ================= Atelier Silhouette : feuille quadrillée ================= */
+.sil-wrap { grid-template-columns: 190px minmax(0, 1fr) 210px; }
+.sil-board { position: relative; width: min(100%, 62vh); aspect-ratio: 1; justify-self: center; }
+.sil-board canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; max-height: none !important; }
+#sil-canvas { border: 2px solid var(--line); border-radius: 10px; }
+#sil-overlay { pointer-events: none; border-radius: 10px; }
+#sil-pos { position: absolute; right: 8px; bottom: 8px; background: #0f172acc; color: #fff; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 7px; pointer-events: none; }
+#sil-pos[hidden] { display: none; }
+.sil-grid-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.sil-grid-tools button { font-size: 12.5px; padding: 6px 4px; justify-content: flex-start; }
+.sil-grid-tools button img, .sil-grid-tools button .ico { width: 20px; height: 20px; }
+.sil-tools label.chk .ico { width: 18px; height: 18px; vertical-align: -4px; color: var(--muted); }
+.sil-board { width: 100%; max-width: 62vh; height: auto; aspect-ratio: 1 / 1; align-self: start; }
+@media (max-width: 980px) {
+  .sil-wrap { grid-template-columns: 170px minmax(0, 1fr); }
+  .sil-side { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+}
