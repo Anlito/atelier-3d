@@ -185,9 +185,9 @@
 </dialog>
 
 <!-- Atelier Silhouette -->
-<dialog id="dlg-sil" class="dlg wide">
+<dialog id="dlg-sil" class="dlg full">
   <h2><img src="img/outils/silhouette.png" alt=""> Atelier Silhouette</h2>
-  <p class="lead">Trace les <b>contours</b> avec un trait d’épaisseur fixe, puis <b>remplis</b> les zones : tout ce qui est <b>noir</b> sera en plastique, le blanc à l’intérieur devient des trous.</p>
+  <p class="lead">Trace les <b>contours</b> avec un trait d’épaisseur fixe, puis <b>remplis</b> les zones : le <b>noir</b> sera en plastique, le blanc à l’intérieur devient des trous. <span class="muted">Molette : zoomer · clic droit (ou Espace) + glisser : se déplacer.</span></p>
   <div class="sil-wrap">
     <div class="sil-tools">
       <div class="sil-grid-tools">
@@ -197,7 +197,8 @@
         <button data-sil-tool="ellipse" data-title="Cercle / ovale" data-help="Glisse pour tracer un cercle ou un ovale (contour). Maj : un cercle parfait."><i data-ic="ellipse"></i> Cercle</button>
         <button data-sil-tool="rect" data-title="Rectangle" data-help="Glisse pour tracer un rectangle (contour). Maj : un carré."><i data-ic="rect"></i> Rectangle</button>
         <button data-sil-tool="fill" data-title="Remplir" data-help="Clique à l’intérieur d’un contour fermé pour le remplir de noir. Clique dans du noir pour le vider."><img src="img/dessin/fill.png" alt=""> Remplir</button>
-        <button data-sil-tool="eraser" data-title="Gomme" data-help="Efface à main levée (3 fois plus large que le trait)."><img src="img/dessin/eraser.png" alt=""> Gomme</button>
+        <button data-sil-tool="eraser" data-title="Gomme" data-help="Efface à main levée. Le cercle rouge montre exactement la zone effacée (3 fois la largeur du trait)."><img src="img/dessin/eraser.png" alt=""> Gomme</button>
+        <button data-sil-tool="pan" data-title="Se déplacer" data-help="Glisse pour déplacer la feuille quand tu as zoomé. Raccourcis : clic droit + glisser, ou Espace + glisser, depuis n’importe quel outil."><i data-ic="hand"></i> Déplacer</button>
       </div>
       <label class="num" data-title="Épaisseur du trait" data-help="L’épaisseur réelle, en mm, de tous les traits une fois imprimés. 1,5 mm minimum pour que ça ne casse pas."><span>Épaisseur du trait (mm)</span><input id="sil-w" type="number" value="1.7" step="0.1" min="0.5"></label>
       <label class="chk" data-title="Quadrillage" data-help="Affiche des carreaux de 5 mm (traits plus foncés tous les 10 mm) pour mesurer. Il n’est pas imprimé."><input type="checkbox" id="sil-grid" checked> <i data-ic="grid"></i> Quadrillage</label>
@@ -213,7 +214,16 @@
         <label class="chk"><input type="checkbox" id="sil-inv"> Inverser noir et blanc</label>
       </div>
     </div>
-    <div class="sil-board"><canvas id="sil-canvas"></canvas><canvas id="sil-overlay"></canvas><div id="sil-pos" hidden></div></div>
+    <div class="sil-board" id="sil-board">
+      <div class="sil-stage" id="sil-stage"><canvas id="sil-canvas"></canvas><canvas id="sil-overlay"></canvas></div>
+      <div class="sil-zoom">
+        <button id="sil-zout" data-title="Dézoomer (−)" data-help="Voir plus large. Astuce : la molette de la souris."><i data-ic="zoomout"></i></button>
+        <span id="sil-zlvl">100 %</span>
+        <button id="sil-zin" data-title="Zoomer (+)" data-help="Voir de plus près pour les détails. Astuce : la molette de la souris zoome là où se trouve la souris."><i data-ic="zoomin"></i></button>
+        <button id="sil-zfit" data-title="Toute la feuille (0)" data-help="Revient à la feuille entière."><i data-ic="frame"></i></button>
+      </div>
+      <div id="sil-pos" hidden></div>
+    </div>
     <div class="sil-side">
       <label class="num" data-title="Taille de la feuille" data-help="La feuille de dessin est un carré de cette taille, en vrai. Ta pièce garde exactement la taille de ton dessin sur la feuille."><span>Taille de la feuille (mm)</span><input id="sil-sheet" type="number" value="150" step="10" min="20"></label>
       <label class="num"><span>Épaisseur (mm)</span><input id="sil-t" type="number" value="2" step="0.5"></label>

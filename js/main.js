@@ -4,6 +4,7 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { computeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { buildGeometry, combine, setFont, hasFont, geoStore, clearCache, BOX_SHAPES } from './shapes.js';
 import { initSilhouette, openSilhouette } from './silhouette.js';
 import * as H from './help.js';
@@ -37,14 +38,17 @@ let uid = 1, colorIdx = 0;
 
 /* ================= Scène 3D ================= */
 const view = $('#view');
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// Viser les pièces à la souris reste rapide même avec des milliers de facettes (silhouettes, pièces fusionnées)
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 view.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xe8eef5);
 const camera = new THREE.PerspectiveCamera(40, 1, 1, 8000);
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.15;
+controls.enableDamping = true; controls.dampingFactor = 0.25; controls.rotateSpeed = 0.9;
 controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
 controls.maxDistance = 2500; controls.minDistance = 10;
 let orbitMoved = false;
@@ -97,6 +101,7 @@ function syncMesh(o) {
   if (!o.mesh) { o.mesh = new THREE.Mesh(); o.mesh.userData.obj = o; scene.add(o.mesh); }
   const m = o.mesh;
   m.geometry = buildGeometry(o.type, o.size, o.params);
+  if (!m.geometry.boundsTree) try { m.geometry.computeBoundsTree(); } catch { /* visée classique */ }
   m.material?.dispose?.(); m.material = makeMaterial(o);
   m.renderOrder = o.kind === 'solid' ? 0 : 2;
   for (const c of [...m.children]) { m.remove(c); c.geometry.dispose(); }
@@ -244,7 +249,14 @@ function toScreen(v) {
 }
 const clampX = (x, w) => Math.max(8 + w / 2, Math.min(view.clientWidth - 8 - w / 2, x));
 let lift = null, editingDim = null;
-function place(el, s, dx = 0, dy = 0) { el.style.transform = `translate(${Math.round(s.x + dx)}px, ${Math.round(s.y + dy)}px) translate(-50%, -50%)`; el.style.visibility = s.ok ? '' : 'hidden'; }
+function place(el, s, dx = 0, dy = 0) { // on ne touche à la page que si la position a changé
+  const t = `translate(${Math.round(s.x + dx)}px, ${Math.round(s.y + dy)}px) translate(-50%, -50%)`, v = s.ok ? '' : 'hidden';
+  if (el._t !== t) { el._t = t; el.style.transform = t; }
+  if (el._v !== v) { el._v = v; el.style.visibility = v; }
+}
+// taille de la barre d'actions, mesurée seulement quand elle change (pas à chaque image : la vue reste fluide)
+const barSize = { w: 0, h: 0 };
+new ResizeObserver(() => { const el = $('#ctxbar'); barSize.w = el.offsetWidth; barSize.h = el.offsetHeight; }).observe($('#ctxbar'));
 function updateOverlays() {
   const sel = [...state.selected], bar = $('#ctxbar'), dims = $('#dims');
   const show = sel.length > 0 && !state.preview && state.mode !== 'drill';
@@ -253,10 +265,20 @@ function updateOverlays() {
   const hd = $('#handles'); hd.hidden = !(show && sel.length === 1 && gizmo !== 'rotate');
   if (!show) return;
   const b = new THREE.Box3(); sel.forEach(o => b.union(cachedBox(o)));
-  // barre d'actions au-dessus de l'objet
+  // barre d'actions au-dessus de l'objet entier tel qu'on le voit à l'écran (les 8 coins de sa boîte),
+  // pour qu'elle ne cache jamais la pièce ; s'il n'y a pas la place au-dessus, elle passe en dessous
+  let minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < 8; i++) {
+    const c = toScreen(new THREE.Vector3(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z));
+    if (c.ok) { minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y); }
+  }
   const top = toScreen(new THREE.Vector3((b.min.x + b.max.x) / 2, b.max.y, (b.min.z + b.max.z) / 2));
-  const bw = bar.offsetWidth, by = Math.max(8, top.y - (sel.length === 1 ? 92 : 64));
-  bar.style.transform = `translate(${Math.round(clampX(top.x, bw) - bw / 2)}px, ${Math.round(by)}px)`;
+  if (minY === Infinity) minY = maxY = top.y;
+  const one = sel.length === 1, bw = barSize.w || bar.offsetWidth, bh = barSize.h || bar.offsetHeight;
+  let by = minY - (one ? 52 : 14) - bh;
+  if (by < 8) by = Math.min(view.clientHeight - bh - 8, maxY + (one ? 48 : 16));
+  const bt = `translate(${Math.round(clampX(top.x, bw) - bw / 2)}px, ${Math.round(by)}px)`;
+  if (bar._t !== bt) { bar._t = bt; bar.style.transform = bt; }
   if (sel.length !== 1) return;
   // mesures sur les arêtes qui font face à la caméra
   const o = sel[0], m = o.mesh, s = o.size;
@@ -280,7 +302,7 @@ function updateOverlays() {
     });
   }
   const lb = $('#lift'), t = `⇕ ${r2(b.min.y)} mm`;
-  place(lb, top, 0, -40);
+  place(lb, { x: top.x, y: minY, ok: top.ok }, 0, -26);
   if (lb.textContent !== t) lb.textContent = t;
   lb.classList.toggle('up', b.min.y > 0.05);
 }

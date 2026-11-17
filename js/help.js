@@ -184,7 +184,9 @@ export const GUIDE = [
     <ul><li>Choisis l’<b>épaisseur du trait</b> en mm (1,7 mm, c’est bien) : tous tes traits auront exactement cette épaisseur.</li>
     <li><b>Libre</b> pour dessiner à main levée, <b>Droit</b> pour un trait droit (Maj : horizontal, vertical ou 45°), <b>Courbe</b> (glisse, puis bouge la souris pour courber, puis clique), <b>Cercle</b> et <b>Rectangle</b>.</li>
     <li><b>Remplir</b> : clique dans une zone fermée pour la noircir. Les zones blanches à l’intérieur deviennent des trous (yeux, motifs).</li>
-    <li><b>Quadrillage</b> : un carreau = 5 mm. <b>Aimanter</b> accroche les traits aux carreaux.</li>
+    <li><b>Zoomer</b> avec la molette de la souris (là où est la souris) ; <b>se déplacer</b> en glissant avec le clic droit, ou Espace + glisser, ou l’outil <b>Déplacer</b>. Touche 0 : toute la feuille.</li>
+    <li><b>Gomme</b> : le cercle rouge montre exactement ce qui sera effacé.</li>
+    <li><b>Quadrillage</b> : un carreau = 5 mm (les millimètres apparaissent quand on zoome). <b>Aimanter</b> accroche les traits aux carreaux.</li>
     <li><b>Symétrie</b> : ce que tu dessines d’un côté apparaît aussi de l’autre côté.</li>
     <li><b>Importer une image</b> : règle le « Seuil » pour bien séparer le noir du blanc.</li></ul>
     <p>Pour corriger plus tard : <b>double-clic</b> sur la silhouette (ou bouton ✏️ <b>Modifier le dessin</b>).</p>` },

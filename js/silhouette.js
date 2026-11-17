@@ -1,15 +1,18 @@
 // Atelier Silhouette : dessin noir et blanc à l'échelle réelle -> contours -> pièce plate.
 // La feuille est un carré de « sheet » mm ; tous les traits ont une épaisseur fixe en mm.
 const $ = s => document.querySelector(s);
-const W = 640, H = 640;
+const W = 1280, H = 1280; // assez fin pour zoomer sur les détails (≈ 0,12 mm par point sur une feuille de 150 mm)
 let cv, ctx, ov, octx, tool = 'free', sym = false, undo = [], orig = null, onDone = null, onDraw = null;
 let drag = null;          // geste en cours : { tool, a, b, phase }
 let cursor = null;        // dernière position de la souris (pour l'aperçu)
+// Vue de la feuille : zoom à la molette, déplacement (clic droit, clic molette, Espace ou outil Main)
+let board, stage, zoom = 1, panX = 0, panY = 0, base = 600, pan = null, space = false;
 
 const sheetMm = () => Math.max(20, +$('#sil-sheet').value || 150);
 const mmPerPx = () => sheetMm() / W;
 const strokePx = () => Math.max(0.5, +$('#sil-w').value || 1.7) / mmPerPx();
 const snapOn = () => $('#sil-snap').checked;
+const eraserPx = () => Math.max(strokePx() * 3, 3 / mmPerPx());
 
 export function initSilhouette() {
   cv = $('#sil-canvas'); cv.width = W; cv.height = H;
@@ -19,8 +22,7 @@ export function initSilhouette() {
   document.querySelectorAll('[data-sil-tool]').forEach(b => b.addEventListener('click', () => {
     tool = b.dataset.silTool; drag = null;
     document.querySelectorAll('[data-sil-tool]').forEach(x => x.classList.toggle('on', x === b));
-    cv.style.cursor = tool === 'fill' ? 'cell' : 'crosshair';
-    overlay();
+    setCursor(); overlay();
   }));
   $('#sil-sym').addEventListener('change', e => { sym = e.target.checked; overlay(); });
   for (const id of ['#sil-grid', '#sil-snap']) $(id).addEventListener('change', () => overlay());
@@ -33,9 +35,44 @@ export function initSilhouette() {
   $('#sil-inv').addEventListener('change', applyThreshold);
   $('#sil-ok').addEventListener('click', finish);
   $('#sil-cancel').addEventListener('click', () => $('#dlg-sil').close());
-  $('#dlg-sil').addEventListener('keydown', e => { if (e.key === 'Escape' && drag) { e.preventDefault(); drag = null; overlay(); } });
+  $('#dlg-sil').addEventListener('keydown', e => {
+    if (e.key === 'Escape' && drag) { e.preventDefault(); drag = null; overlay(); }
+    if (e.target.matches('input')) return;
+    if (e.code === 'Space') { e.preventDefault(); if (!space) { space = true; setCursor(); overlay(); } }
+    if (e.key === '+' || e.key === '=') zoomAt(null, null, 1.25);
+    if (e.key === '-') zoomAt(null, null, 1 / 1.25);
+    if (e.key === '0') fitView();
+  });
+  $('#dlg-sil').addEventListener('keyup', e => { if (e.code === 'Space') { space = false; setCursor(); } });
+
+  // ----- zoom et déplacement dans la feuille -----
+  board = $('#sil-board'); stage = $('#sil-stage');
+  new ResizeObserver(() => layout()).observe(board);
+  board.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = board.getBoundingClientRect();
+    zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-Math.max(-120, Math.min(120, e.deltaY)) * 0.0022));
+  }, { passive: false });
+  board.addEventListener('contextmenu', e => e.preventDefault());
+  board.addEventListener('pointerdown', e => {
+    if (e.target.closest('.sil-zoom')) return;
+    if (!(e.button === 1 || e.button === 2 || space || tool === 'pan')) return;
+    e.preventDefault(); e.stopPropagation();
+    pan = { x: e.clientX, y: e.clientY, px: panX, py: panY };
+    board.setPointerCapture(e.pointerId); board.classList.add('panning'); overlay();
+  }, true);
+  board.addEventListener('pointermove', e => {
+    if (!pan) return;
+    panX = pan.px + e.clientX - pan.x; panY = pan.py + e.clientY - pan.y; layout();
+  });
+  const endPan = () => { if (pan) { pan = null; board.classList.remove('panning'); } };
+  board.addEventListener('pointerup', endPan); board.addEventListener('pointercancel', endPan);
+  $('#sil-zin').addEventListener('click', () => zoomAt(null, null, 1.5));
+  $('#sil-zout').addEventListener('click', () => zoomAt(null, null, 1 / 1.5));
+  $('#sil-zfit').addEventListener('click', fitView);
 
   cv.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
     const p = pt(e, tool !== 'free' && tool !== 'eraser' && tool !== 'fill');
     if (drag?.phase === 'bend') { // 3e temps de la courbe : on la pose
       pushUndo(); stroke(path('curve', drag.a, drag.b, p)); drag = null; overlay(); onDraw?.(); info(); return;
@@ -84,7 +121,45 @@ export function openSilhouette(opts, done, draw) {
   $('#sil-ok').textContent = opts.edit ? '✔ Mettre à jour la pièce' : '✔ Créer la pièce 3D';
   $('#sil-msg').textContent = '';
   $('#dlg-sil').showModal();
+  space = false; setCursor(); fitView();
   overlay(); info();
+}
+
+/* ---------- vue : zoom et déplacement ---------- */
+function layout() {
+  if (!board) return;
+  const bw = board.clientWidth, bh = board.clientHeight;
+  if (!bw || !bh) return;
+  base = Math.max(100, Math.min(bw - 28, bh - BAR - 14));
+  // on garde toujours un bout de feuille visible
+  const s = base * zoom, m = 60, [ox, oy] = origin(s);
+  panX = Math.max(m - ox - s, Math.min(bw - m - ox, panX));
+  panY = Math.max(m - oy - s, Math.min(bh - m - oy, panY));
+  stage.style.width = stage.style.height = base + 'px';
+  stage.style.transform = `translate(${ox + panX}px, ${oy + panY}px) scale(${zoom})`;
+  $('#sil-zlvl').textContent = Math.round(zoom * 100) + ' %';
+  overlay();
+}
+const BAR = 46; // place gardée en bas pour la barre de zoom
+// coin haut-gauche de la feuille (de taille s à l'écran) quand elle n'est pas déplacée : centrée au-dessus de la barre de zoom
+const origin = s => [(board.clientWidth - s) / 2, (board.clientHeight - BAR + 4 - s) / 2];
+/** Zoome autour d'un point de la zone (en px), ou autour du centre. */
+function zoomAt(mx, my, f) {
+  const bw = board.clientWidth, bh = board.clientHeight;
+  if (mx == null) { mx = bw / 2; my = bh / 2; }
+  const z = Math.max(1, Math.min(16, zoom * f)); if (z === zoom) return;
+  // le point de la feuille sous la souris reste sous la souris
+  const [ox, oy] = origin(base * zoom), sx = (mx - ox - panX) / zoom, sy = (my - oy - panY) / zoom;
+  zoom = z;
+  const [nx, ny] = origin(base * z);
+  panX = mx - sx * z - nx; panY = my - sy * z - ny;
+  layout();
+}
+function fitView() { zoom = 1; panX = panY = 0; layout(); }
+function setCursor() {
+  if (!cv) return;
+  board?.classList.toggle('can-pan', space || tool === 'pan');
+  cv.style.cursor = space || tool === 'pan' ? 'grab' : tool === 'fill' ? 'cell' : tool === 'eraser' || tool === 'free' ? 'none' : 'crosshair';
 }
 
 /* ---------- coordonnées, aimant, contraintes ---------- */
@@ -131,29 +206,45 @@ function paint(g, draw, color, width) {
 }
 function stroke(draw) {
   const eraser = drag?.tool === 'eraser' || (!drag && tool === 'eraser');
-  paint(ctx, draw, eraser ? '#fff' : '#000', eraser ? Math.max(strokePx() * 3, 3 / mmPerPx()) : strokePx());
+  paint(ctx, draw, eraser ? '#fff' : '#000', eraser ? eraserPx() : strokePx());
 }
 
 /* ---------- calque d'aide : quadrillage, axe de symétrie, aperçu du tracé ---------- */
 function overlay() {
   if (!octx) return;
   octx.clearRect(0, 0, W, H);
+  const k = W / (base * zoom); // points de la feuille par pixel d'écran : les aides gardent la même finesse à tous les zooms
+  const line = (x0, y0, x1, y1) => { octx.beginPath(); octx.moveTo(x0, y0); octx.lineTo(x1, y1); octx.stroke(); };
   if ($('#sil-grid').checked) {
-    const g = 5 / mmPerPx();
-    for (let i = 0, k = 0; i <= W + 0.5; i += g, k++) {
-      octx.strokeStyle = k % 2 ? 'rgba(59,130,246,.13)' : 'rgba(59,130,246,.32)';
-      octx.lineWidth = 1;
-      octx.beginPath(); octx.moveTo(Math.round(i) + 0.5, 0); octx.lineTo(Math.round(i) + 0.5, H); octx.stroke();
-      octx.beginPath(); octx.moveTo(0, Math.round(i) + 0.5); octx.lineTo(W, Math.round(i) + 0.5); octx.stroke();
+    const mm = 1 / mmPerPx();
+    octx.lineWidth = k;
+    if (mm / k >= 9) { // assez zoomé : on ajoute les millimètres
+      octx.strokeStyle = 'rgba(59,130,246,.08)';
+      for (let i = 0; i <= W + 0.5; i += mm) { line(i, 0, i, H); line(0, i, W, i); }
+    }
+    for (let i = 0, n = 0; i <= W + 0.5; i += 5 * mm, n++) {
+      octx.strokeStyle = n % 2 ? 'rgba(59,130,246,.16)' : 'rgba(59,130,246,.36)';
+      line(i, 0, i, H); line(0, i, W, i);
     }
   }
-  if (sym) { octx.strokeStyle = 'rgba(147,51,234,.6)'; octx.setLineDash([6, 5]); octx.beginPath(); octx.moveTo(W / 2, 0); octx.lineTo(W / 2, H); octx.stroke(); octx.setLineDash([]); }
+  if (sym) { octx.strokeStyle = 'rgba(147,51,234,.6)'; octx.lineWidth = 1.5 * k; octx.setLineDash([6 * k, 5 * k]); line(W / 2, 0, W / 2, H); octx.setLineDash([]); }
   if (drag && drag.phase) {
     const draw = drag.phase === 'bend' ? path('curve', drag.a, drag.b, cursor || drag.b) : path(drag.tool === 'curve' ? 'line' : drag.tool, drag.a, drag.b);
     paint(octx, draw, 'rgba(37,99,235,.75)', strokePx());
-    if (drag.phase === 'bend') { octx.fillStyle = '#2563eb'; for (const p of [drag.a, drag.b]) { octx.beginPath(); octx.arc(p[0], p[1], 4, 0, 7); octx.fill(); } }
+    if (drag.phase === 'bend') { octx.fillStyle = '#2563eb'; for (const p of [drag.a, drag.b]) { octx.beginPath(); octx.arc(p[0], p[1], 4 * k, 0, 7); octx.fill(); } }
   }
-  if (cursor && snapOn() && tool !== 'free' && tool !== 'eraser' && tool !== 'fill') { octx.fillStyle = '#f59e0b'; octx.beginPath(); octx.arc(cursor[0], cursor[1], 3.5, 0, 7); octx.fill(); }
+  if (!cursor || pan || space || tool === 'pan') return;
+  if (tool === 'free' || tool === 'eraser') { // la taille réelle du trait ou de la gomme, sous la souris
+    const er = tool === 'eraser', r = (er ? eraserPx() : strokePx()) / 2;
+    const ring = x => {
+      octx.beginPath(); octx.arc(x, cursor[1], r, 0, 7);
+      if (er) { octx.fillStyle = 'rgba(254,226,226,.45)'; octx.fill(); }
+      octx.lineWidth = 3 * k; octx.strokeStyle = '#fff'; octx.stroke();
+      octx.lineWidth = 1.4 * k; octx.strokeStyle = er ? '#dc2626' : '#2563eb'; octx.stroke();
+      octx.beginPath(); octx.arc(x, cursor[1], 1.3 * k, 0, 7); octx.fillStyle = er ? '#dc2626' : '#2563eb'; octx.fill();
+    };
+    ring(cursor[0]); if (sym) ring(W - cursor[0]);
+  } else if (snapOn() && tool !== 'fill') { octx.fillStyle = '#f59e0b'; octx.beginPath(); octx.arc(cursor[0], cursor[1], 4 * k, 0, 7); octx.fill(); }
 }
 
 /* ---------- remplissage, image importée ---------- */

@@ -33,6 +33,9 @@ const P = {
   ellipse: '<ellipse cx="12" cy="12" rx="9" ry="7"/>',
   grid: '<path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"/>',
   magnet: '<path d="M6 3v8a6 6 0 0 0 12 0V3"/><path d="M6 7h4M14 7h4M10 3v8a2 2 0 0 0 4 0V3"/>',
+  hand: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V5.5a1.5 1.5 0 0 1 3 0V13"/><path d="M17 9.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.9-2.6L4.3 15a1.6 1.6 0 0 1 2.5-2L8 14.5"/>',
+  zoomin: '<circle cx="10.5" cy="10.5" r="7"/><path d="m21 21-5.5-5.5M10.5 7.5v6M7.5 10.5h6"/>',
+  zoomout: '<circle cx="10.5" cy="10.5" r="7"/><path d="m21 21-5.5-5.5M7.5 10.5h6"/>',
   move: '<path d="M12 2.5v19M2.5 12h19M9 5.5l3-3 3 3M9 18.5l3 3 3-3M5.5 9l-3 3 3 3M18.5 9l3 3-3 3"/>',
 };
 /** Une icône en SVG (à mettre dans un gabarit HTML). */
