@@ -187,7 +187,7 @@
 <!-- Atelier Silhouette -->
 <dialog id="dlg-sil" class="dlg full">
   <h2><img src="img/outils/silhouette.png" alt=""> Atelier Silhouette</h2>
-  <p class="lead">Trace les <b>contours</b> avec un trait d’épaisseur fixe, puis <b>remplis</b> les zones : le <b>noir</b> sera en plastique, le blanc à l’intérieur devient des trous. <span class="muted">Molette : zoomer · clic droit (ou Espace) + glisser : se déplacer.</span></p>
+  <p class="lead">Trace les <b>contours</b> avec un trait d’épaisseur fixe, puis <b>remplis</b> les zones : le <b>noir</b> sera en plastique, le blanc à l’intérieur devient des trous. <span class="muted">Molette : zoomer · clic droit (ou Espace) + glisser : faire défiler la feuille.</span></p>
   <div class="sil-wrap">
     <div class="sil-tools">
       <div class="sil-grid-tools">
@@ -198,7 +198,8 @@
         <button data-sil-tool="rect" data-title="Rectangle" data-help="Glisse pour tracer un rectangle (contour). Maj : un carré."><i data-ic="rect"></i> Rectangle</button>
         <button data-sil-tool="fill" data-title="Remplir" data-help="Clique à l’intérieur d’un contour fermé pour le remplir de noir. Clique dans du noir pour le vider."><img src="img/dessin/fill.png" alt=""> Remplir</button>
         <button data-sil-tool="eraser" data-title="Gomme" data-help="Efface à main levée. Le cercle rouge montre exactement la zone effacée (3 fois la largeur du trait)."><img src="img/dessin/eraser.png" alt=""> Gomme</button>
-        <button data-sil-tool="pan" data-title="Se déplacer" data-help="Glisse pour déplacer la feuille quand tu as zoomé. Raccourcis : clic droit + glisser, ou Espace + glisser, depuis n’importe quel outil."><i data-ic="hand"></i> Déplacer</button>
+        <button data-sil-tool="move" data-title="Déplacer une forme" data-help="Clique sur un trait ou une forme noire et glisse : tout ce qui se touche bouge ensemble. Ctrl + glisser : en faire une copie. Ensuite, les flèches du clavier la poussent de 1 mm (Maj : 5 mm) et Suppr l’efface. Échap pendant le glissement : annuler."><i data-ic="move"></i> Déplacer</button>
+        <button data-sil-tool="pan" data-title="Main : faire défiler la feuille" data-help="Glisse pour faire défiler la feuille quand tu as zoomé (le dessin ne bouge pas). Raccourcis : clic droit + glisser, ou Espace + glisser, depuis n’importe quel outil."><i data-ic="hand"></i> Main</button>
       </div>
       <label class="num" data-title="Épaisseur du trait" data-help="L’épaisseur réelle, en mm, de tous les traits une fois imprimés. 1,5 mm minimum pour que ça ne casse pas."><span>Épaisseur du trait (mm)</span><input id="sil-w" type="number" value="1.7" step="0.1" min="0.5"></label>
       <label class="chk" data-title="Quadrillage" data-help="Affiche des carreaux de 5 mm (traits plus foncés tous les 10 mm) pour mesurer. Il n’est pas imprimé."><input type="checkbox" id="sil-grid" checked> <i data-ic="grid"></i> Quadrillage</label>

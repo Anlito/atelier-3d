@@ -7,6 +7,7 @@ let drag = null;          // geste en cours : { tool, a, b, phase }
 let cursor = null;        // dernière position de la souris (pour l'aperçu)
 // Vue de la feuille : zoom à la molette, déplacement (clic droit, clic molette, Espace ou outil Main)
 let gv, gctx, ovPending = false;
+let picked = null; // dernière forme déplacée : { fc (noir), wc (blanc), x, y, w, h } pour les flèches du clavier et Suppr
 let board, stage, zoom = 1, panX = 0, panY = 0, base = 600, pan = null, space = false;
 
 // taille (mm) que représente la feuille dessinée ; elle ne change qu'avec setSheet(), qui redimensionne le dessin
@@ -25,7 +26,7 @@ export function initSilhouette() {
   ov = $('#sil-overlay'); ov.width = W; ov.height = H; octx = ov.getContext('2d');
   clear();
   document.querySelectorAll('[data-sil-tool]').forEach(b => b.addEventListener('click', () => {
-    tool = b.dataset.silTool; drag = null;
+    tool = b.dataset.silTool; drag = null; picked = null;
     document.querySelectorAll('[data-sil-tool]').forEach(x => x.classList.toggle('on', x === b));
     setCursor(); overlay();
   }));
@@ -35,12 +36,12 @@ export function initSilhouette() {
   $('#sil-sheet').addEventListener('change', () => setSheet(readSheet()));
   $('#sil-sheet').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); setSheet(readSheet()); } });
   $('#sil-undo').addEventListener('click', () => {
-    const d = undo.pop(); if (!d) return;
+    const d = undo.pop(); if (!d) return; picked = null;
     ctx.putImageData(d.img, 0, 0);
     if (d.sheet !== sheet) { sheet = d.sheet; $('#sil-sheet').value = sheet; gridKey = ''; overlay(); }
     info();
   });
-  $('#sil-clear').addEventListener('click', () => { pushUndo(); clear(); orig = null; $('#sil-imgopts').hidden = true; info(); });
+  $('#sil-clear').addEventListener('click', () => { picked = null; pushUndo(); clear(); orig = null; $('#sil-imgopts').hidden = true; info(); });
   $('#sil-import').addEventListener('click', () => $('#sil-file').click());
   $('#sil-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importImage(f); e.target.value = ''; });
   $('#sil-thr').addEventListener('input', applyThreshold);
@@ -50,6 +51,12 @@ export function initSilhouette() {
   $('#dlg-sil').addEventListener('keydown', e => {
     if (e.key === 'Escape' && drag) { e.preventDefault(); drag = null; overlay(); }
     if (e.target.matches('input')) return;
+    if (e.key === 'Escape' && drag?.tool === 'move') { e.preventDefault(); cancelMove(); return; }
+    if (picked && tool === 'move' && !drag) {
+      const st = (e.shiftKey ? 5 : 1) / mmPerPx(), dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (dir) { e.preventDefault(); pushUndo(); nudge(dir[0] * st, dir[1] * st); return; }
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); pushUndo(); ctx.drawImage(picked.wc, picked.x, picked.y); picked = null; overlay(); info(); onDraw?.(); return; }
+    }
     if (e.code === 'Space') { e.preventDefault(); if (!space) { space = true; setCursor(); overlay(); } }
     if (e.key === '+' || e.key === '=') zoomAt(null, null, 1.25);
     if (e.key === '-') zoomAt(null, null, 1 / 1.25);
@@ -85,16 +92,29 @@ export function initSilhouette() {
 
   cv.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
-    const p = pt(e, tool !== 'free' && tool !== 'eraser' && tool !== 'fill');
+    const p = pt(e, tool !== 'free' && tool !== 'eraser' && tool !== 'fill' && tool !== 'move');
     if (drag?.phase === 'bend') { // 3e temps de la courbe : on la pose
       pushUndo(); stroke(path('curve', drag.a, drag.b, p)); drag = null; overlay(); onDraw?.(); info(); return;
     }
+    if (tool === 'move') { startMove(p, e.ctrlKey || e.altKey); if (drag) cv.setPointerCapture(e.pointerId); return; }
     if (tool === 'fill') { pushUndo(); flood(p[0] | 0, p[1] | 0); if (sym) flood((W - 1 - p[0]) | 0, p[1] | 0); onDraw?.(); info(); return; }
     cv.setPointerCapture(e.pointerId);
     if (tool === 'free' || tool === 'eraser') { pushUndo(); drag = { tool, last: p }; stroke(path('line', p, p)); return; }
     drag = { tool, a: p, b: p, phase: 'drag' };
   });
   cv.addEventListener('pointermove', e => {
+    if (drag?.tool === 'move') {
+      const p = pt(e, false); cursor = p;
+      let dx = p[0] - drag.start[0], dy = p[1] - drag.start[1];
+      if (snapOn()) { const g = 5 / mmPerPx(); dx = Math.round(dx / g) * g; dy = Math.round(dy / g) * g; }
+      if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; } // Maj : tout droit
+      const q = drag.sel; // la forme reste sur la feuille
+      dx = Math.max(-q.x, Math.min(W - q.x - q.w, dx)); dy = Math.max(-q.y, Math.min(H - q.y - q.h, dy));
+      drag.dx = dx; drag.dy = dy;
+      const mm = mmPerPx(), el = $('#sil-pos'), f = v => (Math.round(v * mm * 10) / 10).toLocaleString('fr-FR');
+      el.hidden = false; el.textContent = `déplacé de ${f(dx)} ; ${f(dy)} mm`;
+      requestOverlay(); return;
+    }
     const snap = drag && drag.tool !== 'free' && drag.tool !== 'eraser' || tool === 'line' || tool === 'curve' || tool === 'rect' || tool === 'ellipse';
     const p = pt(e, snap); cursor = p;
     showPos(p);
@@ -110,6 +130,7 @@ export function initSilhouette() {
   });
   cv.addEventListener('pointerup', e => {
     if (!drag) return;
+    if (drag.tool === 'move') { endMove(); return; }
     if (drag.tool === 'free' || drag.tool === 'eraser') { drag = null; onDraw?.(); info(); return; }
     if (drag.phase !== 'drag') return;
     const { a, b } = drag;
@@ -123,7 +144,7 @@ export function initSilhouette() {
 export function openSilhouette(opts, done, draw) {
   onDone = done; onDraw = draw; undo = []; orig = null; drag = null;
   $('#sil-imgopts').hidden = true;
-  sheet = opts.sheet || 150; $('#sil-sheet').value = sheet; gridKey = '';
+  sheet = opts.sheet || 150; $('#sil-sheet').value = sheet; gridKey = ''; picked = null;
   $('#sil-t').value = opts.thickness || 2;
   clear();
   if (opts.src) {
@@ -174,10 +195,75 @@ function zoomAt(mx, my, f) {
   layout();
 }
 function fitView() { zoom = 1; panX = panY = 0; layout(); }
+/* ---------- déplacer une forme : tout ce qui se touche bouge ensemble ---------- */
+/** Trouve la forme sous le point p (avec un peu de tolérance), la retire du dessin (sauf copie) et la renvoie. */
+function lift(p, copy) {
+  const id = ctx.getImageData(0, 0, W, H), d = id.data;
+  const lum = i => d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2];
+  const x0 = Math.round(p[0]), y0 = Math.round(p[1]);
+  const R = Math.max(3, Math.round(5 * W / (base * zoom))); // ~5 pixels d'écran autour du clic
+  let seed = -1;
+  for (let r = 0; r <= R && seed < 0; r++) for (let dy = -r; dy <= r && seed < 0; dy++) for (let dx = -r; dx <= r; dx++) {
+    const x = x0 + dx, y = y0 + dy;
+    if (x >= 0 && y >= 0 && x < W && y < H && lum(y * W + x) < 384) { seed = y * W + x; break; }
+  }
+  if (seed < 0) return null;
+  // tous les points pas blancs reliés au point cliqué (bords adoucis et diagonales compris)
+  const seen = new Uint8Array(W * H), list = [], stack = [seed];
+  let minx = W, miny = H, maxx = 0, maxy = 0;
+  seen[seed] = 1;
+  while (stack.length) {
+    const i = stack.pop(); list.push(i);
+    const x = i % W, y = (i / W) | 0;
+    if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const j = ny * W + nx; if (!seen[j] && lum(j) < 735) { seen[j] = 1; stack.push(j); }
+    }
+  }
+  const w = maxx - minx + 1, h = maxy - miny + 1;
+  const mk = () => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  const fc = mk(), wc = mk(), fi = new ImageData(w, h), wi = new ImageData(w, h);
+  for (const i of list) {
+    const x = i % W - minx, y = ((i / W) | 0) - miny, o = (y * w + x) * 4;
+    fi.data[o + 3] = 255 - lum(i) / 3;                                          // noir, avec ses bords adoucis
+    wi.data[o] = wi.data[o + 1] = wi.data[o + 2] = 255; wi.data[o + 3] = 255;   // de quoi l'effacer
+    if (!copy) d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = 255;
+  }
+  fc.getContext('2d').putImageData(fi, 0, 0); wc.getContext('2d').putImageData(wi, 0, 0);
+  if (!copy) ctx.putImageData(id, 0, 0);
+  return { fc, wc, x: minx, y: miny, w, h };
+}
+function startMove(p, copy) {
+  pushUndo();
+  const sel = lift(p, copy);
+  if (!sel) { undo.pop(); picked = null; overlay(); $('#sil-msg').textContent = 'Clique sur un trait ou une zone noire pour la déplacer.'; return; }
+  $('#sil-msg').textContent = '';
+  drag = { tool: 'move', start: p, sel, dx: 0, dy: 0, copy };
+  overlay();
+}
+function endMove() {
+  const { sel, dx, dy } = drag; drag = null;
+  sel.x = Math.round(sel.x + dx); sel.y = Math.round(sel.y + dy);
+  ctx.drawImage(sel.fc, sel.x, sel.y);
+  if (!dx && !dy) undo.pop(); // simple clic : la forme est juste choisie
+  picked = sel; overlay(); info(); onDraw?.();
+}
+function cancelMove() {
+  const { sel, copy } = drag; drag = null;
+  if (!copy) ctx.drawImage(sel.fc, sel.x, sel.y);
+  undo.pop(); picked = null; overlay();
+}
+function nudge(dx, dy) {
+  ctx.drawImage(picked.wc, picked.x, picked.y);
+  picked.x = Math.max(0, Math.min(W - picked.w, Math.round(picked.x + dx))); picked.y = Math.max(0, Math.min(H - picked.h, Math.round(picked.y + dy)));
+  ctx.drawImage(picked.fc, picked.x, picked.y);
+  overlay(); info(); onDraw?.();
+}
 function setCursor() {
   if (!cv) return;
   board?.classList.toggle('can-pan', space || tool === 'pan');
-  cv.style.cursor = space || tool === 'pan' ? 'grab' : tool === 'fill' ? 'cell' : tool === 'eraser' || tool === 'free' ? 'none' : 'crosshair';
+  cv.style.cursor = space || tool === 'pan' ? 'grab' : tool === 'move' ? 'move' : tool === 'fill' ? 'cell' : tool === 'eraser' || tool === 'free' ? 'none' : 'crosshair';
 }
 
 /* ---------- coordonnées, aimant, contraintes ---------- */
@@ -264,6 +350,13 @@ function drawCursorLayer() {
     paint(octx, draw, 'rgba(37,99,235,.75)', strokePx());
     if (drag.phase === 'bend') { octx.fillStyle = '#2563eb'; for (const p of [drag.a, drag.b]) { octx.beginPath(); octx.arc(p[0], p[1], 4 * k, 0, 7); octx.fill(); } }
   }
+  const box = (x, y, w, h) => { // cadre pointillé autour de la forme choisie
+    const m = 4 * k;
+    octx.lineWidth = 1.5 * k; octx.setLineDash([5 * k, 4 * k]); octx.strokeStyle = '#2563eb';
+    octx.strokeRect(x - m, y - m, w + 2 * m, h + 2 * m); octx.setLineDash([]);
+  };
+  if (drag?.tool === 'move') { const q = drag.sel; octx.globalAlpha = 0.85; octx.drawImage(q.fc, q.x + drag.dx, q.y + drag.dy); octx.globalAlpha = 1; box(q.x + drag.dx, q.y + drag.dy, q.w, q.h); }
+  else if (picked && tool === 'move') box(picked.x, picked.y, picked.w, picked.h);
   if (!cursor || pan || space || tool === 'pan') return;
   if (tool === 'free' || tool === 'eraser') { // la taille réelle du trait ou de la gomme, sous la souris
     const er = tool === 'eraser', r = (er ? eraserPx() : strokePx()) / 2;
@@ -300,7 +393,7 @@ function setSheet(v) {
     }
   }
   $('#sil-msg').textContent = '';
-  pushUndo();
+  pushUndo(); picked = null;
   const rescale = c => {
     const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
     const t = tmp.getContext('2d'); t.drawImage(c, 0, 0);
