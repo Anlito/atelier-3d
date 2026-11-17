@@ -9,6 +9,7 @@ import { buildGeometry, combine, setFont, hasFont, geoStore, clearCache, BOX_SHA
 import { initSilhouette, openSilhouette } from './silhouette.js';
 import * as H from './help.js';
 import { ic, hydrateIcons } from './icons.js';
+import { initProf, locked, isProfPC } from './prof.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1067,17 +1068,31 @@ function setBot() {
     : Date.now() < cheerUntil ? 'bravo'
     : $('#as-warn').children.length ? 'warning'
     : hoverHelp ? 'explain'
-    : mission && mission.i < mission.def.steps.length && mission.def.steps[mission.i].sel ? 'point'
+    : mission && mission.i < mission.def.steps.length && stepsOf(mission.def)[mission.i].sel ? 'point'
     : 'neutral';
   const el = $('#as-bot'), src = `img/mascotte/${mood}.png`;
   if (!el.src.endsWith(src)) { el.src = src; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
 }
 function cheer(ms = 3500) { cheerUntil = Date.now() + ms; setTimeout(setBot, ms + 50); }
 function missionCtx() { return { objs: state.objects, ev: state.events, touch, inside, box: o => worldBox(o) }; }
+// Étapes d'un projet guidé, adaptées aux outils fermés sur ce poste
+const stepsOf = def => def.steps.map(s => s.lock && s.alt && locked(s.lock) ? { ...s, ...s.alt } : s);
+/** Cache les outils que le professeur a fermés sur ce poste. */
+function applyLocks() {
+  const imp = locked('import');
+  $('#sil-import').hidden = imp; $('#sil-import').previousElementSibling.hidden = imp;
+  if (imp) $('#sil-imgopts').hidden = true;
+  const ct = $('.ltabs [data-tab="comps"]');
+  ct.hidden = locked('comps');
+  if (ct.hidden && ct.classList.contains('on')) showTab('shapes');
+  $('#tool-box').hidden = locked('box'); $('[data-empty="box"]').hidden = locked('box');
+  $('#prof-badge').hidden = !isProfPC();
+  updateAssistant();
+}
 function renderMission() {
   const el = $('#as-mission');
   if (!mission) { el.innerHTML = `<button class="wide soft" data-mact="choose">🎯 Choisir un projet guidé</button><div class="tip">💡 <b>Le savais-tu ?</b> ${H.TIPS[tipIdx]}</div>`; return; }
-  const st = mission.def.steps, ctx = missionCtx();
+  const st = stepsOf(mission.def), ctx = missionCtx();
   let advanced = false;
   while (mission.i < st.length) { let ok = false; try { ok = st[mission.i].ok(ctx); } catch (e) { } if (!ok) break; mission.i++; advanced = true; }
   if (advanced) { autosave(); cheer(); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
@@ -1095,7 +1110,7 @@ $('#assistant').addEventListener('click', e => {
   if (a === 'quit') { mission = null; autosave(); updateAssistant(); }
   if (a === 'skip') { mission.i++; autosave(); updateAssistant(); }
   if (a === 'show') {
-    const t = $(mission.def.steps[mission.i].sel);
+    const t = $(stepsOf(mission.def)[mission.i].sel);
     if (!t) return toast('Ce bouton apparaît quand tu as sélectionné le bon objet (ou plusieurs objets).');
     const pane = t.closest('.lpane'); if (pane) showTab(pane.dataset.pane);
     t.scrollIntoView({ block: 'nearest' }); t.classList.remove('pulse'); void t.offsetWidth; t.classList.add('pulse');
@@ -1151,6 +1166,8 @@ $$('[data-add]').forEach(b => b.addEventListener('click', () => {
 }));
 $$('[data-comp]').forEach(b => b.addEventListener('click', () => addComponent(b.dataset.comp)));
 $('#tool-drill').addEventListener('click', () => setMode(state.mode === 'drill' ? 'select' : 'drill'));
+initProf(() => { applyLocks(); toast('Réglages enregistrés pour ce poste.'); });
+applyLocks();
 $('#tool-box').addEventListener('click', () => { emit('open:box'); $('#dlg-box').showModal(); });
 $('#tool-silhouette').addEventListener('click', newSilhouette);
 $('#btn-preview').addEventListener('click', () => { if (!state.preview) setPreview(true); });

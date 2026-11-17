@@ -22,13 +22,15 @@
 </head>
 <body>
 <header id="topbar">
-  <div class="brand"><img class="logo" src="img/logo/logo-192.png" alt=""><span>Atelier <b>3D</b></span></div>
+  <div class="brand"><img class="logo" src="img/logo/logo-192.png" alt=""><span>Atelier <b>3D</b></span><span id="prof-badge" hidden data-title="Poste professeur" data-help="Sur ce poste, tous les outils sont ouverts. Pour changer : Fichier → Espace professeur.">Poste prof</span></div>
   <div class="menu">
     <button id="btn-file" class="ghost" data-title="Fichier" data-help="Nouveau projet, ouvrir ou enregistrer ton travail. Ton travail est aussi gardé automatiquement dans ce navigateur."><i data-ic="folder"></i> Fichier <i data-ic="chevron"></i></button>
     <div id="file-pop" class="menu-pop" hidden>
       <button id="btn-new"><i data-ic="new"></i> Nouveau projet</button>
       <button id="btn-open"><i data-ic="open"></i> Ouvrir un projet…</button>
       <button id="btn-save"><i data-ic="save"></i> Enregistrer sur l’ordinateur</button>
+      <hr>
+      <button id="btn-prof"><i data-ic="lock"></i> Espace professeur…</button>
     </div>
   </div>
   <input id="proj-name" value="mon-objet" aria-label="Nom du projet" data-title="Nom du projet" data-help="Ce nom sera utilisé pour les fichiers que tu enregistres ou télécharges.">
@@ -261,6 +263,29 @@
   <p class="info bad" id="save-fallback" hidden>Ce navigateur ne permet pas de choisir le dossier : le fichier ira dans <b>Téléchargements</b>. Déplace-le ensuite dans le dossier de ton équipe (ou utilise Chrome ou Edge).</p>
   <label class="num"><span>Nom du fichier</span><span class="save-name"><input id="save-name"><b id="save-ext">.atelier3d</b></span></label>
   <div class="dlg-actions"><button data-close class="ghost">Annuler</button><button id="save-go" class="primary">Choisir l’emplacement…</button></div>
+</dialog>
+
+<!-- Espace professeur : outils permis sur ce poste -->
+<dialog id="dlg-prof" class="dlg">
+  <h2><i data-ic="lock"></i> Espace professeur</h2>
+  <div id="prof-login">
+    <p class="lead">Cet espace sert à choisir les outils que les élèves peuvent utiliser sur ce poste.</p>
+    <label class="num"><span>Code professeur</span><input id="prof-code" type="password" autocomplete="off"></label>
+    <p id="prof-err" class="bad"></p>
+    <div class="dlg-actions"><button data-close class="ghost">Annuler</button><button id="prof-go" class="primary">Ouvrir</button></div>
+  </div>
+  <div id="prof-panel" hidden>
+    <p class="lead">Sur <b>ce poste</b>, les élèves peuvent utiliser :</p>
+    <div class="prof-opts">
+      <label class="chk"><input type="checkbox" data-allow="import"> <span><b>Importer une image</b><small>dans l’atelier Silhouette</small></span></label>
+      <label class="chk"><input type="checkbox" data-allow="comps"> <span><b>Les composants tout faits</b><small>Arduino, boutons, LED… (onglet Composants)</small></span></label>
+      <label class="chk"><input type="checkbox" data-allow="box"> <span><b>La boîte automatique</b><small>outil magique Boîte</small></span></label>
+      <hr>
+      <label class="chk"><input type="checkbox" id="prof-pc"> <span><b>C’est mon poste</b><small>tous les outils, sans restriction</small></span></label>
+    </div>
+    <p class="info">Ces réglages restent sur <b>ce PC, dans ce navigateur</b> : à refaire sur chaque poste élève. Si les données du navigateur sont effacées, le poste revient au réglage de départ (seul l’import d’image est fermé).</p>
+    <div class="dlg-actions"><button data-close class="ghost">Fermer</button><button id="prof-save" class="primary">Enregistrer pour ce poste</button></div>
+  </div>
 </dialog>
 
 <!-- Projets guidés -->

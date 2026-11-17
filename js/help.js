@@ -86,10 +86,10 @@ export const MISSIONS = [
     ],
   },
   {
-    id: 'ombre', icon: '🎭', title: 'Théâtre d’ombre : mon personnage', desc: 'Dessine ou importe une silhouette, elle devient une pièce de 2 mm d’épaisseur prête à imprimer.',
+    id: 'ombre', icon: '🎭', title: 'Théâtre d’ombre : mon personnage', desc: 'Dessine une silhouette : elle devient une pièce de 2 mm d’épaisseur prête à imprimer.',
     steps: [
       { t: 'Ouvre l’atelier Silhouette', h: 'Clique sur « Silhouette » dans les Outils magiques.', sel: '#tool-silhouette', ok: c => c.ev.has('open:silhouette') },
-      { t: 'Dessine ton personnage en noir (ou importe une image)', h: 'Trace le contour avec les outils Libre, Droit, Courbe ou Cercle (trait de 1,7 mm), puis « Remplir » l’intérieur. Tout ce qui est NOIR sera en plastique. Les zones blanches à l’intérieur deviennent des trous (yeux, décors…). Le quadrillage t’aide pour les tailles : un carreau = 5 mm.', ok: c => c.ev.has('draw') || c.ev.has('add:silhouette') },
+      { t: 'Dessine ton personnage en noir', h: 'Trace le contour avec les outils Libre, Droit, Courbe ou Cercle (trait de 1,7 mm), puis « Remplir » l’intérieur. Tout ce qui est NOIR sera en plastique. Les zones blanches à l’intérieur deviennent des trous (yeux, décors…). Le quadrillage t’aide pour les tailles : un carreau = 5 mm.', ok: c => c.ev.has('draw') || c.ev.has('add:silhouette') },
       { t: 'Choisis 2 mm d’épaisseur et crée la pièce', h: 'Dans l’atelier, règle « Épaisseur » sur 2 mm puis clique sur « Créer la pièce 3D ».', ok: c => c.objs.some(o => o.type === 'silhouette') },
       { t: 'Vérifie la taille de ton personnage', h: 'Sélectionne-le : la « Profondeur » est sa hauteur sur l’écran du théâtre. Entre 80 et 200 mm, c’est bien. Coche « Garder les proportions » avant de changer un nombre.', ok: c => c.objs.some(o => o.type === 'silhouette' && Math.max(o.size.x, o.size.z) >= 60 && Math.max(o.size.x, o.size.z) <= 210) },
       { t: 'Perce le trou de la baguette', h: 'Outil « Percer » → choisis « Baguette du théâtre d’ombre », puis clique sur ton personnage, près du bas.', sel: '#tool-drill', ok: c => c.ev.has('drill') },
@@ -100,8 +100,12 @@ export const MISSIONS = [
   {
     id: 'simon', icon: '🎮', title: 'La boîte du jeu Simon', desc: 'Une boîte avec couvercle, percée pour les boutons, les LED et le câble USB de l’Arduino.',
     steps: [
-      { t: 'Crée la boîte avec l’assistant', h: 'Outils magiques → « Boîte ». Choisis le modèle « Jeu Simon » et laisse le couvercle coché.', sel: '#tool-box', ok: c => c.objs.some(o => o.type === 'box') },
-      { t: 'Place l’Arduino (repère gris) dans la boîte', h: 'Composants → « Arduino Uno ». Fais-le glisser dans la boîte, puis clique « Poser » : il descend au fond. Active « Rayons X » pour voir à travers.', sel: '[data-comp="arduino"]', ok: c => c.objs.some(a => a.params.comp === 'arduino' && c.objs.some(b => b.type === 'box' && c.inside(a, b))) },
+      { t: 'Crée la boîte avec l’assistant', h: 'Outils magiques → « Boîte ». Choisis le modèle « Jeu Simon » et laisse le couvercle coché.', sel: '#tool-box', ok: c => c.objs.some(o => o.type === 'box'),
+        // si le professeur a fermé l'outil Boîte sur ce poste
+        lock: 'box', alt: { t: 'Construis la boîte à la main', h: 'Pose un cube « Matière » à la taille extérieure de ta boîte. Pose un 2e cube plus petit (4 mm de moins en largeur et en profondeur), mets-le en « Trou » et monte-le de 2 mm pour garder le fond. Sélectionne les deux puis « Fusionner ». Fais le couvercle de la même façon.', sel: '[data-add="cube"]', ok: c => c.objs.some(o => o.type === 'box' || (o.type === 'custom' && o.kind === 'solid' && o.size.x >= 40 && o.size.z >= 40)) } },
+      { t: 'Place l’Arduino (repère gris) dans la boîte', h: 'Composants → « Arduino Uno ». Fais-le glisser dans la boîte, puis clique « Poser » : il descend au fond. Active « Rayons X » pour voir à travers.', sel: '[data-comp="arduino"]', ok: c => c.objs.some(a => a.params.comp === 'arduino' && c.objs.some(b => b.type === 'box' && c.inside(a, b))),
+        // si le professeur a fermé les composants tout faits : on mesure la vraie carte
+        lock: 'comps', alt: { t: 'Fais le repère de l’Arduino dans la boîte', h: 'Mesure ta carte Arduino avec une règle (environ 69 × 53 mm, et 15 mm de haut avec la prise USB). Pose un cube à ces mesures, mets-le en « Repère », puis place-le au fond de la boîte. Active « Rayons X » pour voir à travers.', sel: '[data-add="cube"]', ok: c => c.objs.some(a => a.kind === 'ghost' && c.objs.some(b => (b.type === 'box' || b.type === 'custom') && c.inside(a, b))) } },
       { t: 'Perce la sortie du câble USB', h: 'Outil « Percer » → « Câble USB-B (Arduino Uno) ». Clique sur la paroi de la boîte, juste en face de la prise USB de l’Arduino.', sel: '#tool-drill', ok: c => holes(c).some(h => h.params.preset === 'usbb') },
       { t: 'Perce 4 trous pour les boutons dans le couvercle', h: 'Percer → choisis ton bouton (arcade 30 mm, ou poussoir 12 mm…). Clique 4 fois sur la plaque du couvercle.', ok: c => holes(c).filter(h => /^btn/.test(h.params.preset || '')).length >= 4 },
       { t: 'Perce 4 trous pour les LED', h: 'Percer → « LED 5 mm » ou « LED 10 mm » selon tes LED. Une LED à côté de chaque bouton, de la même couleur !', ok: c => holes(c).filter(h => /^led/.test(h.params.preset || '')).length >= 4 },

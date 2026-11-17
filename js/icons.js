@@ -37,6 +37,7 @@ const P = {
   zoomin: '<circle cx="10.5" cy="10.5" r="7"/><path d="m21 21-5.5-5.5M10.5 7.5v6M7.5 10.5h6"/>',
   zoomout: '<circle cx="10.5" cy="10.5" r="7"/><path d="m21 21-5.5-5.5M7.5 10.5h6"/>',
   fill: '<g transform="translate(1 1.5) rotate(40 9 12)"><path d="M4 8h9.5l-1 9a1.5 1.5 0 0 1-1.5 1.3H6.5A1.5 1.5 0 0 1 5 17z"/><path d="M4 8c1.8 1.2 7.7 1.2 9.5 0"/><path d="M5.8 8V7a3 3 0 0 1 6 0v1"/></g><path d="M15 12.6c2.4.3 4.4 1.7 5 3.6"/><path d="M21.6 19.6a1.6 1.6 0 0 1-3.2 0c0-1.1 1.6-2.8 1.6-2.8s1.6 1.7 1.6 2.8z" fill="currentColor"/>',
+  lock: '<rect x="4.5" y="10.5" width="15" height="10.5" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3M12 14.5V17"/>',
   move: '<path d="M12 2.5v19M2.5 12h19M9 5.5l3-3 3 3M9 18.5l3 3 3-3M5.5 9l-3 3 3 3M18.5 9l3 3-3 3"/>',
 };
 /** Une icône en SVG (à mettre dans un gabarit HTML). */

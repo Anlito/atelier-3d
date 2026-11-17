@@ -403,3 +403,13 @@ dialog.dlg.full[open] { display: flex; flex-direction: column; }
   #dlg-sil .lead .muted { white-space: normal; }
 }
 #sil-gridc { pointer-events: none; }
+
+/* ===== Espace professeur ===== */
+[hidden] { display: none !important; }
+.menu-pop hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+#prof-badge { margin-left: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; background: #262c3a; color: #fff; border-radius: 999px; padding: 2px 8px; }
+.prof-opts { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 12px; }
+.prof-opts label.chk { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; cursor: pointer; }
+.prof-opts label.chk input { margin-top: 3px; width: 18px; height: 18px; }
+.prof-opts small { display: block; color: var(--muted); font-size: 12.5px; }
+.prof-opts hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 2px 0; }
