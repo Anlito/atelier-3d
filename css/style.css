@@ -402,3 +402,4 @@ dialog.dlg.full[open] { display: flex; flex-direction: column; }
   #dlg-sil .sil-wrap { grid-template-columns: 170px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   #dlg-sil .lead .muted { white-space: normal; }
 }
+#sil-gridc { pointer-events: none; }

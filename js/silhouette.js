@@ -6,6 +6,7 @@ let cv, ctx, ov, octx, tool = 'free', sym = false, undo = [], orig = null, onDon
 let drag = null;          // geste en cours : { tool, a, b, phase }
 let cursor = null;        // dernière position de la souris (pour l'aperçu)
 // Vue de la feuille : zoom à la molette, déplacement (clic droit, clic molette, Espace ou outil Main)
+let gv, gctx, ovPending = false;
 let board, stage, zoom = 1, panX = 0, panY = 0, base = 600, pan = null, space = false;
 
 const sheetMm = () => Math.max(20, +$('#sil-sheet').value || 150);
@@ -16,7 +17,8 @@ const eraserPx = () => Math.max(strokePx() * 3, 3 / mmPerPx());
 
 export function initSilhouette() {
   cv = $('#sil-canvas'); cv.width = W; cv.height = H;
-  ctx = cv.getContext('2d', { willReadFrequently: true });
+  ctx = cv.getContext('2d');
+  gv = $('#sil-gridc'); gv.width = W; gv.height = H; gctx = gv.getContext('2d');
   ov = $('#sil-overlay'); ov.width = W; ov.height = H; octx = ov.getContext('2d');
   clear();
   document.querySelectorAll('[data-sil-tool]').forEach(b => b.addEventListener('click', () => {
@@ -86,9 +88,15 @@ export function initSilhouette() {
     const snap = drag && drag.tool !== 'free' && drag.tool !== 'eraser' || tool === 'line' || tool === 'curve' || tool === 'rect' || tool === 'ellipse';
     const p = pt(e, snap); cursor = p;
     showPos(p);
-    if (drag && (drag.tool === 'free' || drag.tool === 'eraser')) { stroke(path('line', drag.last, p)); drag.last = p; return; }
+    if (drag && (drag.tool === 'free' || drag.tool === 'eraser')) {
+      const evs = e.getCoalescedEvents?.() || [];
+      const pts = evs.length ? evs.map(ev => pt(ev, false)) : [p];
+      stroke(g => { g.beginPath(); g.moveTo(drag.last[0], drag.last[1]); for (const q of pts) g.lineTo(q[0], q[1]); });
+      drag.last = pts[pts.length - 1];
+      requestOverlay(); return;
+    }
     if (drag?.phase === 'drag') drag.b = constrain(drag.tool, drag.a, p, e.shiftKey);
-    overlay();
+    requestOverlay();
   });
   cv.addEventListener('pointerup', e => {
     if (!drag) return;
@@ -179,7 +187,8 @@ function constrain(t, a, b, shift) {
 function showPos(p) {
   const el = $('#sil-pos'), mm = mmPerPx();
   el.hidden = false;
-  let t = `x ${Math.round(p[0] * mm)} · y ${Math.round(p[1] * mm)} mm`;
+  const f = v => zoom >= 3 ? (Math.round(v * 10) / 10).toLocaleString('fr-FR') : Math.round(v);
+  let t = `x ${f(p[0] * mm)} · y ${f(p[1] * mm)} mm`;
   if (drag?.phase === 'drag' && drag.tool !== 'free' && drag.tool !== 'eraser') {
     const dx = Math.abs(drag.b[0] - drag.a[0]) * mm, dy = Math.abs(drag.b[1] - drag.a[1]) * mm;
     t = drag.tool === 'line' || drag.tool === 'curve' ? `longueur ${Math.round(Math.hypot(dx, dy))} mm` : `${Math.round(dx)} × ${Math.round(dy)} mm`;
@@ -210,10 +219,16 @@ function stroke(draw) {
 }
 
 /* ---------- calque d'aide : quadrillage, axe de symétrie, aperçu du tracé ---------- */
-function overlay() {
-  if (!octx) return;
+function requestOverlay() { // au plus une fois par image
+  if (ovPending) return; ovPending = true;
+  requestAnimationFrame(() => { ovPending = false; drawCursorLayer(); });
+}
+let gridKey = '';
+function drawGrid() {
+  const k = W / (base * zoom), key = [k, $('#sil-grid').checked, sym, sheetMm()].join();
+  if (key === gridKey) return; gridKey = key;
+  const octx = gctx; // même code de dessin, sur le calque du quadrillage
   octx.clearRect(0, 0, W, H);
-  const k = W / (base * zoom); // points de la feuille par pixel d'écran : les aides gardent la même finesse à tous les zooms
   const line = (x0, y0, x1, y1) => { octx.beginPath(); octx.moveTo(x0, y0); octx.lineTo(x1, y1); octx.stroke(); };
   if ($('#sil-grid').checked) {
     const mm = 1 / mmPerPx();
@@ -228,6 +243,12 @@ function overlay() {
     }
   }
   if (sym) { octx.strokeStyle = 'rgba(147,51,234,.6)'; octx.lineWidth = 1.5 * k; octx.setLineDash([6 * k, 5 * k]); line(W / 2, 0, W / 2, H); octx.setLineDash([]); }
+}
+function overlay() { if (gctx) drawGrid(); drawCursorLayer(); }
+function drawCursorLayer() {
+  if (!octx) return;
+  octx.clearRect(0, 0, W, H);
+  const k = W / (base * zoom);
   if (drag && drag.phase) {
     const draw = drag.phase === 'bend' ? path('curve', drag.a, drag.b, cursor || drag.b) : path(drag.tool === 'curve' ? 'line' : drag.tool, drag.a, drag.b);
     paint(octx, draw, 'rgba(37,99,235,.75)', strokePx());
