@@ -9,7 +9,10 @@ let cursor = null;        // dernière position de la souris (pour l'aperçu)
 let gv, gctx, ovPending = false;
 let board, stage, zoom = 1, panX = 0, panY = 0, base = 600, pan = null, space = false;
 
-const sheetMm = () => Math.max(20, +$('#sil-sheet').value || 150);
+// taille (mm) que représente la feuille dessinée ; elle ne change qu'avec setSheet(), qui redimensionne le dessin
+let sheet = 150;
+const sheetMm = () => sheet;
+const readSheet = () => Math.max(20, Math.min(1000, +$('#sil-sheet').value || 150));
 const mmPerPx = () => sheetMm() / W;
 const strokePx = () => Math.max(0.5, +$('#sil-w').value || 1.7) / mmPerPx();
 const snapOn = () => $('#sil-snap').checked;
@@ -28,8 +31,15 @@ export function initSilhouette() {
   }));
   $('#sil-sym').addEventListener('change', e => { sym = e.target.checked; overlay(); });
   for (const id of ['#sil-grid', '#sil-snap']) $(id).addEventListener('change', () => overlay());
-  for (const id of ['#sil-w', '#sil-sheet']) $(id).addEventListener('input', () => { overlay(); info(); });
-  $('#sil-undo').addEventListener('click', () => { const d = undo.pop(); if (d) ctx.putImageData(d, 0, 0); info(); });
+  $('#sil-w').addEventListener('input', () => { overlay(); info(); });
+  $('#sil-sheet').addEventListener('change', () => setSheet(readSheet()));
+  $('#sil-sheet').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); setSheet(readSheet()); } });
+  $('#sil-undo').addEventListener('click', () => {
+    const d = undo.pop(); if (!d) return;
+    ctx.putImageData(d.img, 0, 0);
+    if (d.sheet !== sheet) { sheet = d.sheet; $('#sil-sheet').value = sheet; gridKey = ''; overlay(); }
+    info();
+  });
   $('#sil-clear').addEventListener('click', () => { pushUndo(); clear(); orig = null; $('#sil-imgopts').hidden = true; info(); });
   $('#sil-import').addEventListener('click', () => $('#sil-file').click());
   $('#sil-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importImage(f); e.target.value = ''; });
@@ -113,7 +123,7 @@ export function initSilhouette() {
 export function openSilhouette(opts, done, draw) {
   onDone = done; onDraw = draw; undo = []; orig = null; drag = null;
   $('#sil-imgopts').hidden = true;
-  $('#sil-sheet').value = opts.sheet || 150;
+  sheet = opts.sheet || 150; $('#sil-sheet').value = sheet; gridKey = '';
   $('#sil-t').value = opts.thickness || 2;
   clear();
   if (opts.src) {
@@ -121,7 +131,7 @@ export function openSilhouette(opts, done, draw) {
     im.onload = () => {
       ctx.drawImage(im, 0, 0, W, H);
       // ancienne silhouette : on retrouve la taille de feuille qui redonne la même hauteur de pièce
-      if (!opts.sheet && opts.fitHeight) { const { bh, empty } = binarize(); if (!empty) $('#sil-sheet').value = Math.round(opts.fitHeight * W / bh); }
+      if (!opts.sheet && opts.fitHeight) { const { bh, empty } = binarize(); if (!empty) { sheet = Math.round(opts.fitHeight * W / bh); $('#sil-sheet').value = sheet; gridKey = ''; } }
       overlay(); info();
     };
     im.src = opts.src;
@@ -270,7 +280,43 @@ function drawCursorLayer() {
 
 /* ---------- remplissage, image importée ---------- */
 function clear() { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); }
-function pushUndo() { undo.push(ctx.getImageData(0, 0, W, H)); if (undo.length > 30) undo.shift(); }
+function pushUndo() { undo.push({ img: ctx.getImageData(0, 0, W, H), sheet }); if (undo.length > 30) undo.shift(); }
+/**
+ * Change la taille de la feuille SANS changer la taille réelle du dessin :
+ * plus grande feuille = plus de place autour (le dessin paraît plus petit), et l'inverse.
+ * Le dessin reste centré au même endroit par rapport au milieu de la feuille.
+ */
+function setSheet(v) {
+  if (v === sheet) return;
+  const k = sheet / v, b = binarize();
+  if (!b.empty && k > 1) { // feuille plus petite : le dessin doit encore tenir dedans
+    const fits = [b.minx, b.maxx + 1].every(x => (x - W / 2) * k + W / 2 >= 0 && (x - W / 2) * k + W / 2 <= W) &&
+      [b.miny, b.maxy + 1].every(y => (y - H / 2) * k + H / 2 >= 0 && (y - H / 2) * k + H / 2 <= H);
+    if (!fits) {
+      const need = Math.ceil(2 * Math.max(W / 2 - b.minx, b.maxx + 1 - W / 2, H / 2 - b.miny, b.maxy + 1 - H / 2) * sheet / W);
+      $('#sil-sheet').value = sheet;
+      $('#sil-msg').textContent = `Ton dessin ne tiendrait plus sur la feuille : il faut au moins ${need} mm.`;
+      return;
+    }
+  }
+  $('#sil-msg').textContent = '';
+  pushUndo();
+  const rescale = c => {
+    const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
+    const t = tmp.getContext('2d'); t.drawImage(c, 0, 0);
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    g.drawImage(tmp, (W - W * k) / 2, (H - H * k) / 2, W * k, H * k);
+  };
+  rescale(cv);
+  if (orig) rescale(orig);
+  // le gris des bords adoucis redevient noir ou blanc, comme le reste du dessin
+  const id = ctx.getImageData(0, 0, W, H), d = id.data;
+  for (let i = 0; i < d.length; i += 4) { const v2 = d[i] + d[i + 1] + d[i + 2] < 384 ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = v2; d[i + 3] = 255; }
+  ctx.putImageData(id, 0, 0);
+  sheet = v; $('#sil-sheet').value = v;
+  overlay(); info(); onDraw?.();
+}
 function flood(x, y) {
   if (x < 0 || y < 0 || x >= W || y >= H) return;
   const id = ctx.getImageData(0, 0, W, H), d = id.data;
@@ -323,7 +369,7 @@ function binarize() {
     bin[i] = 1; const x = i % W, y = (i / W) | 0;
     if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
   }
-  return { bin, bw: maxx - minx + 1, bh: maxy - miny + 1, empty: maxx < 0 };
+  return { bin, bw: maxx - minx + 1, bh: maxy - miny + 1, minx, miny, maxx, maxy, empty: maxx < 0 };
 }
 
 // Taille réelle du dessin et solidité du trait
