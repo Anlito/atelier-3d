@@ -419,3 +419,6 @@ dialog.dlg.full[open] { display: flex; flex-direction: column; }
 .box-draw button { align-self: flex-start; display: flex; align-items: center; gap: 6px; }
 .box-draw .info { margin: 0; }
 #box-L[readonly], #box-P[readonly] { background: #f1f5f9; color: var(--muted); }
+
+/* ===== Rectangle de sélection ===== */
+#selrect { position: absolute; z-index: 5; border: 1.5px dashed #2563eb; background: rgba(37, 99, 235, .08); border-radius: 3px; pointer-events: none; }

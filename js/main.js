@@ -51,7 +51,9 @@ scene.background = new THREE.Color(0xe8eef5);
 const camera = new THREE.PerspectiveCamera(40, 1, 1, 8000);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.25; controls.rotateSpeed = 0.9;
-controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+// Comme Tinkercad : clic droit = tourner (Maj + clic droit = glisser), clic molette = glisser, molette = zoomer.
+// Le clic gauche dans le vide trace un rectangle de sélection.
+controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
 controls.maxDistance = 2500; controls.minDistance = 10;
 let orbitMoved = false;
 controls.addEventListener('start', () => { orbitMoved = false; });
@@ -490,7 +492,7 @@ view.addEventListener('pointerdown', e => {
     return;
   }
   const h = pick(e);
-  if (!h) { press = { x: e.clientX, y: e.clientY, empty: true }; return; }
+  if (!h) { press = { x: e.clientX, y: e.clientY, empty: true, add: e.shiftKey || e.ctrlKey, touch: e.pointerType === 'touch' }; return; }
   const o = h.object.userData.obj;
   controls.enabled = false;
   if (e.shiftKey || e.ctrlKey) { state.selected.has(o) ? state.selected.delete(o) : state.selected.add(o); refreshUI(); press = { x: e.clientX, y: e.clientY }; return; }
@@ -513,6 +515,15 @@ window.addEventListener('pointermove', e => {
     tip.innerHTML = `X <b>${r2(d.lead.pos.x)}</b> · Y <b>${r2(-d.lead.pos.z)}</b> mm<br><small>déplacé de ${r2(dx)} ; ${r2(-dz)}</small>`;
     return;
   }
+  if (press?.empty && !press.touch) { // rectangle de sélection (souris ; au doigt, on tourne la vue)
+    if (!press.rect && Math.hypot(e.clientX - press.x, e.clientY - press.y) < 5) return;
+    press.rect = true;
+    const r = view.getBoundingClientRect(), el = $('#selrect');
+    el.hidden = false;
+    el.style.left = Math.min(press.x, e.clientX) - r.left + 'px'; el.style.top = Math.min(press.y, e.clientY) - r.top + 'px';
+    el.style.width = Math.abs(e.clientX - press.x) + 'px'; el.style.height = Math.abs(e.clientY - press.y) + 'px';
+    return;
+  }
   if (press) return;
   if (e.target !== renderer.domElement) { setHover(null); drillPrev.visible = false; return; }
   if (state.mode === 'drill') {
@@ -530,10 +541,33 @@ window.addEventListener('pointerup', e => {
   const p = press; press = null; controls.enabled = true; $('#draginfo').hidden = true;
   const click = Math.hypot(e.clientX - p.x, e.clientY - p.y) < 5;
   if (p.drag?.moved) { emit('move', false); pushHistory(); refreshUI(); }
+  else if (p.rect) selectInRect(p, e);
   else if (p.empty && click && !e.shiftKey && state.selected.size) selectOnly(null);
   else if (p.drill && click) drillAt(p.drill);
 });
 
+/** Sélectionne les pièces dont le centre (vu à l'écran) est dans le rectangle tracé. Maj ou Ctrl : on ajoute. */
+function selectInRect(p, e) {
+  $('#selrect').hidden = true;
+  const c = renderer.domElement.getBoundingClientRect();
+  const x0 = Math.min(p.x, e.clientX) - c.left, x1 = Math.max(p.x, e.clientX) - c.left;
+  const y0 = Math.min(p.y, e.clientY) - c.top, y1 = Math.max(p.y, e.clientY) - c.top;
+  const found = state.objects.filter(o => {
+    if (!o.mesh.visible) return false;
+    const b = worldBox(o); let sx = 0, sy = 0, n = 0;
+    for (let i = 0; i < 8; i++) {
+      const s = toScreen(new THREE.Vector3(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z));
+      if (!s.ok) return false; sx += s.x; sy += s.y; n++;
+    }
+    const cx = sx / n, cy = sy / n;
+    return cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1;
+  });
+  if (!p.add) state.selected.clear();
+  found.forEach(o => state.selected.add(o));
+  if (found.length) emit('select-rect', false);
+  refreshUI();
+  if (found.length > 1 && !state.events.has('rect-tip')) { state.events.add('rect-tip'); flash(`${state.selected.size} pièces sélectionnées. Tu peux maintenant les <b>Fusionner</b> ou les <b>Aligner</b>.`); }
+}
 function setHover(o) {
   if (hoverObj === o) return;
   if (hoverObj?.mesh?.material?.emissive) hoverObj.mesh.material.emissive.setHex(0);
@@ -807,7 +841,7 @@ function alignSel(axis, where = 'mid') {
 }
 async function mergeSel() {
   const sel = [...state.selected].filter(o => o.kind !== 'ghost');
-  if (sel.length < 2) return toast('Sélectionne au moins 2 objets (Maj + clic) pour les fusionner.');
+  if (sel.length < 2) return toast('Sélectionne au moins 2 objets pour les fusionner : glisse un rectangle autour, ou Maj + clic sur chacun.');
   const solids = sel.filter(o => o.kind === 'solid'), holes = sel.filter(o => o.kind === 'hole');
   busy(true, 'Fusion en cours…'); await nextFrame();
   let geo;

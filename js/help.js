@@ -76,11 +76,11 @@ export const MISSIONS = [
     id: 'decouverte', icon: '🚀', title: 'Découvrir l’atelier', desc: 'Les gestes de base en 10 minutes : poser, déplacer, redimensionner, trouer, télécharger.',
     steps: [
       { t: 'Pose un cube sur le plateau', h: 'Clique sur « Cube » dans la colonne de gauche.', sel: '[data-add="cube"]', ok: c => c.ev.has('add:cube') },
-      { t: 'Fais tourner la vue', h: 'Clique dans le vide (à côté du cube), garde le bouton enfoncé et bouge la souris. La molette sert à zoomer, le clic droit à glisser la vue.', ok: c => c.ev.has('orbit') },
+      { t: 'Fais tourner la vue', h: 'Clic droit sur le plateau, garde le bouton enfoncé et bouge la souris. La molette sert à zoomer, Maj + clic droit à glisser la vue.', ok: c => c.ev.has('orbit') },
       { t: 'Déplace le cube', h: 'Clique sur le cube, garde le bouton enfoncé et fais-le glisser sur le plateau.', ok: c => c.ev.has('move') },
       { t: 'Donne-lui 40 mm de largeur', h: 'Sélectionne le cube, puis dans « Propriétés », tape 40 dans la case Largeur et appuie sur Entrée.', sel: '#f-sx', ok: c => c.objs.some(o => o.type === 'cube' && Math.abs(o.size.x - 40) < 0.6) },
       { t: 'Ajoute un cylindre et transforme-le en TROU', h: 'Pose un cylindre, puis clique sur le bouton « Trou » dans Propriétés : il devient rouge transparent.', sel: '[data-add="cylinder"]', ok: c => holes(c).length > 0 },
-      { t: 'Place le trou pour qu’il traverse le cube', h: 'Fais glisser le cylindre rouge dans le cube. Astuce : avec les deux sélectionnés (Maj + clic), « Aligner » → Centre, Centre les centre parfaitement.', ok: c => holes(c).some(h => solids(c).some(s => c.touch(h, s))) },
+      { t: 'Place le trou pour qu’il traverse le cube', h: 'Fais glisser le cylindre rouge dans le cube. Astuce : avec les deux sélectionnés (rectangle autour, ou Maj + clic), « Aligner » → Centre, Centre les centre parfaitement.', ok: c => holes(c).some(h => solids(c).some(s => c.touch(h, s))) },
       { t: 'Regarde le résultat final', h: 'Clique sur « Aperçu final » en haut : les trous creusent la matière, comme à l’impression.', sel: '#btn-preview', ok: c => c.ev.has('preview') },
       { t: 'Télécharge ton objet', h: 'Bouton « Télécharger » en haut à droite. Le fichier STL s’ouvre dans le logiciel de l’imprimante (Cura, PrusaSlicer, Bambu Studio…).', sel: '#btn-export', ok: c => c.ev.has('export') },
     ],
@@ -119,7 +119,7 @@ export const MISSIONS = [
       { t: 'Pose la base : un cube de 60 × 40 × 3 mm', h: 'Pose un cube, puis tape 60, 40 et 3 dans Largeur, Profondeur, Hauteur.', sel: '[data-add="cube"]', ok: c => c.objs.some(o => o.type === 'cube' && o.kind === 'solid' && o.size.y <= 6 && o.size.x >= 30) },
       { t: 'Ajoute ton prénom', h: 'Formes → « Texte », puis écris ton prénom dans Propriétés. Pose-le sur la base avec « Poser ».', sel: '[data-add="text"]', ok: c => c.objs.some(o => o.type === 'text') },
       { t: 'Ajoute des formes déco qui touchent la base', h: 'Étoile, cœur, demi-sphère (des yeux ?)… Elles doivent toucher la base pour tenir.', ok: c => solids(c).length >= 3 },
-      { t: 'Fusionne tout en une seule pièce', h: 'Sélectionne tout (Ctrl + A), puis « Fusionner ». Les pièces deviennent un seul objet solide.', sel: '#btn-merge', ok: c => c.ev.has('merge') },
+      { t: 'Fusionne tout en une seule pièce', h: 'Sélectionne tout (rectangle autour des pièces, ou Ctrl + A), puis « Fusionner ». Les pièces deviennent un seul objet solide.', sel: '#btn-merge', ok: c => c.ev.has('merge') },
       { t: 'Perce les trous de fixation', h: 'Percer → « Vis M4 (mBot) » ou « Tenon Lego ». Mesure l’écart des trous sur ton robot avec une règle !', sel: '#tool-drill', ok: c => c.ev.has('drill') },
       { t: 'Télécharge ta déco', sel: '#btn-export', h: 'Bouton « Télécharger ».', ok: c => c.ev.has('export') },
     ],
@@ -153,8 +153,8 @@ export const MISSIONS = [
 /* ---------- Guide complet ---------- */
 export const GUIDE = [
   { t: '🖱️ Bouger la vue', h: `
-    <p><b>Tourner autour :</b> clic gauche <i>dans le vide</i> + bouger la souris.</p>
-    <p><b>Glisser la vue :</b> clic droit + bouger la souris.</p>
+    <p><b>Tourner autour :</b> clic droit + bouger la souris.</p>
+    <p><b>Glisser la vue :</b> Maj + clic droit (ou clic molette) + bouger la souris.</p>
     <p><b>Zoomer :</b> molette de la souris.</p>
     <p>Les boutons en bas de la vue te ramènent à une vue simple : <b>Dessus</b>, <b>Face</b>, <b>Côté</b>. Le bouton <b>🎯 Cadrer</b> zoome sur ce que tu as sélectionné.</p>
     <p>Le mot <b>AVANT</b> écrit sur le plateau t’indique où est l’avant.</p>` },
@@ -196,7 +196,7 @@ export const GUIDE = [
     <li><b>Importer une image</b> : règle le « Seuil » pour bien séparer le noir du blanc.</li></ul>
     <p>Pour corriger plus tard : <b>double-clic</b> sur la silhouette (ou bouton ✏️ <b>Modifier le dessin</b>).</p>` },
   { t: '🔗 Fusionner et aligner', h: `
-    <p>Sélectionne plusieurs objets : <b>Maj + clic</b> sur chacun, ou <b>Ctrl + A</b> pour tout prendre.</p>
+    <p>Sélectionne plusieurs objets : <b>glisse un rectangle</b> dans le vide autour d’eux (avec Maj, on ajoute à la sélection), ou <b>Maj + clic</b> sur chacun, ou <b>Ctrl + A</b> pour tout prendre.</p>
     <p><b>Fusionner</b> en fait une seule pièce : la matière se colle, les trous sélectionnés creusent. Pour les séparer plus tard : sélectionne la pièce et clique <b>Défusionner</b> (Ctrl + Maj + G) ; les objets reviennent à leur place.</p>
     <p><b>Aligner</b> : sur les 3 axes (gauche / centre / droite, arrière / centre / avant, bas / milieu / haut). Les pièces s’alignent sur la plus grande, qui ne bouge pas. Pratique pour centrer un trou dans un cylindre ou coller une pièce contre un bord !</p><p>Avec plusieurs pièces sélectionnées, les <b>flèches 3D</b> et les <b>anneaux 3D</b> les déplacent ou les tournent toutes ensemble.</p>` },
   { t: '🖨️ Télécharger et imprimer', h: `
@@ -246,7 +246,7 @@ export function contextTip(c) {
   if (c.preview) return '👁 <b>Aperçu final</b> : voici ton objet tel qu’il sera imprimé, les trous ont creusé la matière.<br>Clique dans la vue ou sur « Aperçu final » pour revenir à l’édition.';
   if (c.mode === 'drill') return '🔩 <b>Mode Percer</b> : choisis ce que tu veux faire passer dans le panneau en haut, survole une pièce et <b>clique</b> pour percer.<br>La profondeur est automatique : le trou traverse juste l’épaisseur de la paroi. <b>Échap</b> pour terminer.';
   if (!c.count) return '👋 <b>Bienvenue !</b> Choisis un point de départ au milieu de l’écran. Je suis là pour t’expliquer chaque bouton : passe simplement la souris dessus.';
-  if (!c.sel.length) return '👆 Clique sur un objet pour le sélectionner, puis fais-le glisser pour le déplacer.<br><span class="muted">Clic gauche dans le vide : tourner · clic droit : glisser · molette : zoomer.</span>';
+  if (!c.sel.length) return '👆 Clique sur un objet pour le sélectionner, puis fais-le glisser pour le déplacer.<br><span class="muted">Clic droit : tourner la vue · Maj + clic droit : glisser · molette : zoomer · glisser dans le vide : sélectionner plusieurs pièces.</span>';
   if (c.sel.length > 1) return `🧩 <b>${c.sel.length} objets sélectionnés.</b> <b>Fusionner</b> en fait une seule pièce (les trous sélectionnés creusent la matière). <b>Centrer</b> les aligne entre eux.`;
   const o = c.sel[0];
   if (o.kind === 'hole') return '🕳️ <b>Ceci est un trou</b> (rouge). Il creusera toutes les pièces qu’il traverse, dans l’aperçu et au téléchargement. Il doit dépasser un peu de chaque côté pour bien percer.';
