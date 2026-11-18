@@ -413,3 +413,9 @@ dialog.dlg.full[open] { display: flex; flex-direction: column; }
 .prof-opts label.chk input { margin-top: 3px; width: 18px; height: 18px; }
 .prof-opts small { display: block; color: var(--muted); font-size: 12.5px; }
 .prof-opts hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 2px 0; }
+
+/* ===== Boîte de forme libre ===== */
+.box-draw { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 8px; }
+.box-draw button { align-self: flex-start; display: flex; align-items: center; gap: 6px; }
+.box-draw .info { margin: 0; }
+#box-L[readonly], #box-P[readonly] { background: #f1f5f9; color: var(--muted); }

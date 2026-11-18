@@ -10,6 +10,7 @@ import { initSilhouette, openSilhouette } from './silhouette.js';
 import * as H from './help.js';
 import { ic, hydrateIcons } from './icons.js';
 import { initProf, locked, isProfPC } from './prof.js';
+import { offsetLoop, area } from './contours.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -619,7 +620,7 @@ function typeParams(o) {
     case 'tube': return `<h4>Forme</h4>${num('wall', 'Épaisseur de paroi', p.wall ?? 2, 'Épaisseur du tour du tube, en mm.')}`;
     case 'box': return `<h4>Boîte</h4>${shapeSelect(p)}${num('wall', 'Épaisseur des parois', p.wall ?? 2, 'Parois et fond. 2 mm, c’est solide.')}
       <p class="muted small">Les dimensions ci-dessous sont celles de l’extérieur. Le couvercle suit les changements de forme et de taille.</p>`;
-    case 'lid': return `<h4>Couvercle</h4>${num('skirt', 'Hauteur des bords (0 = plat)', p.skirt || 0, 'Hauteur des bords extérieurs du couvercle. Plus grand = la boîte se ferme comme deux moitiés.')}
+    case 'lid': return `<h4>Couvercle</h4>${p.shape === 'custom' && p.boxId ? `<button class="wide" data-act="redraw-box">${ic('pencil')} Redessiner la forme</button>` : ''}${num('skirt', 'Hauteur des bords (0 = plat)', p.skirt || 0, 'Hauteur des bords extérieurs du couvercle. Plus grand = la boîte se ferme comme deux moitiés.')}
       ${num('clr', 'Jeu (mm)', p.clr ?? 0.3, 'Espace laissé pour que le couvercle rentre sans forcer. Trop serré ? Mets 0,4 ou 0,5.')}
       <p class="muted small">La hauteur ci-dessous = plaque + bords + rebord qui rentre dans la boîte.</p>`;
     case 'silhouette': return `<button class="wide" data-act="edit-sil">${ic('pencil')} Modifier le dessin</button>`;
@@ -629,7 +630,8 @@ function typeParams(o) {
 const openSecs = new Set();
 $('#props').addEventListener('toggle', e => { const d = e.target.closest?.('details[data-sec]'); if (d) d.open ? openSecs.add(d.dataset.sec) : openSecs.delete(d.dataset.sec); }, true);
 function shapeSelect(p) {
-  return `<label class="num" data-title="Forme de la boîte" data-help="Le contour de la boîte vue de dessus."><span>Forme</span><select data-f="bshape">${Object.entries(BOX_SHAPES).map(([k, l]) => `<option value="${k}" ${(p.shape || 'rect') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+  return `<label class="num" data-title="Forme de la boîte" data-help="Le contour de la boîte vue de dessus."><span>Forme</span><select data-f="bshape">${Object.entries(BOX_SHAPES).filter(([k]) => k !== 'custom' || p.outline).map(([k, l]) => `<option value="${k}" ${(p.shape || 'rect') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    ${p.shape === 'custom' && p.draw ? `<button class="wide" data-act="redraw-box">${ic('pencil')} Redessiner la forme</button>` : ''}
     ${p.shape === 'round' ? num('radius', 'Rayon des coins', p.r || 0, 'Plus le rayon est grand, plus les coins sont arrondis.') : ''}`;
 }
 function renderProps() {
@@ -729,6 +731,7 @@ function onActClick(e) {
   if (a === 'align') return alignSel(x, y || 'mid');
   if (a === 'alignpop') { alignPop = !alignPop; return renderCtxbar(); }
   if (a === 'edit-sil') return editSilhouette(sel[0]);
+  if (a === 'redraw-box') return redrawBoxShape(sel[0]);
   if (a === 'drill') return setMode('drill');
   if (a === 'gizmo') return setGizmo(x);
   if (a === 'flip') return rotateSel('x', 1, 180);
@@ -738,7 +741,7 @@ function linkLid(box) {
   if (box.type !== 'box') return;
   for (const l of state.objects.filter(o => o.type === 'lid' && o.params.boxId === box.id)) {
     const b0 = worldBox(l).min.y; l.size.x = box.size.x; l.size.z = box.size.z;
-    l.params.wall = box.params.wall; l.params.shape = box.params.shape; l.params.r = box.params.r;
+    l.params.wall = box.params.wall; l.params.shape = box.params.shape; l.params.r = box.params.r; l.params.outline = box.params.outline;
     syncMesh(l); setMinY(l, b0);
     // s'il a grandi jusqu'à chevaucher la boîte, le couvercle se pousse à côté
     const B = worldBox(box), Lb = worldBox(l);
@@ -971,11 +974,18 @@ function initBoxDialog() {
   sel.innerHTML = H.BOX_PRESETS.map(p => `<option value="${p.k}">${p.label}</option>`).join('');
   // choix de la forme, avec un petit dessin de chaque contour
   const SH = { rect: '<rect x="4" y="7" width="24" height="18" rx="1"/>', round: '<rect x="4" y="7" width="24" height="18" rx="6"/>', ellipse: '<ellipse cx="16" cy="16" rx="12" ry="9"/>',
-    hex: '<path d="M4 16 10 6h12l6 10-6 10H10z"/>', oct: '<path d="M11 5h10l7 7v8l-7 7H11l-7-7v-8z"/>' };
-  let shape = 'rect';
+    hex: '<path d="M4 16 10 6h12l6 10-6 10H10z"/>', oct: '<path d="M11 5h10l7 7v8l-7 7H11l-7-7v-8z"/>',
+    custom: '<path d="M6 13c-1-5 4-8 9-7s5 3 9 2 5 4 3 8-5 4-6 7-7 3-10 0-4-5-5-10z"/>' };
+  let shape = 'rect', drawn = null; // drawn : la forme dessinée (contour intérieur en mm, et le dessin pour le reprendre)
   $('#box-shapes').innerHTML = Object.entries(BOX_SHAPES).map(([k, label]) => `<button type="button" data-shape="${k}" class="${k === 'rect' ? 'on' : ''}" role="radio" aria-checked="${k === 'rect'}"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round">${SH[k]}</svg>${label}</button>`).join('');
   const K = () => (shape === 'hex' ? 1 / Math.cos(Math.PI / 6) : shape === 'oct' ? 1 / Math.cos(Math.PI / 8) : 1);
   const upd = () => {
+    const cu = shape === 'custom';
+    $('#box-draw').hidden = !cu;
+    $('#box-L').readOnly = $('#box-P').readOnly = cu;
+    if (cu && drawn) { $('#box-L').value = r2(drawn.w); $('#box-P').value = r2(drawn.h); }
+    $('#box-draw-btn span').textContent = drawn ? 'Redessiner la forme' : 'Dessiner la forme';
+    if (cu && !drawn) { $('#box-info').innerHTML = 'Clique sur <b>Dessiner la forme</b>, puis choisis la hauteur.'; $('#box-lid-opts').hidden = !$('#box-lid').checked; $('#box-r-wrap').hidden = true; return; }
     const L = +$('#box-L').value, P = +$('#box-P').value, Hh = +$('#box-H').value, w = +$('#box-wall').value, k = K();
     const lid = $('#box-lid').checked, skirt = Math.max(0, +$('#box-skirt').value || 0), lip = Math.max(0, +$('#box-lip').value || 0);
     const ox = L + 2 * w * k, oz = P + 2 * w * k, closed = Hh + w + (lid ? w + skirt : 0);
@@ -992,26 +1002,73 @@ function initBoxDialog() {
     $$('#box-shapes button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
     upd();
   });
+  $('#box-draw-btn').addEventListener('click', () => {
+    openSilhouette({ mode: 'box', ...(drawn?.draw || {}) }, r => {
+      const d = innerFromDrawing(r); if (!d) return;
+      drawn = d; upd();
+      if (d.pieces > 1) toast('Tu as dessiné plusieurs formes : seule la plus grande sert de contour à la boîte.');
+    });
+  });
   sel.addEventListener('change', () => { const p = H.BOX_PRESETS.find(x => x.k === sel.value); $('#box-L').value = p.L; $('#box-P').value = p.P; $('#box-H').value = p.H; upd(); });
   $$('#dlg-box input').forEach(i => i.addEventListener('input', upd));
   sel.dispatchEvent(new Event('change'));
-  $('#box-ok').addEventListener('click', () => {
+  $('#box-ok').addEventListener('click', async () => {
     const L = +$('#box-L').value, P = +$('#box-P').value, Hh = +$('#box-H').value, w = Math.max(0.8, +$('#box-wall').value), clr = +$('#box-clr').value;
     const skirt = Math.max(0, +$('#box-skirt').value || 0), lip = Math.max(0, +$('#box-lip').value || 0), r = shape === 'round' ? Math.max(0, +$('#box-r').value || 0) : 0, k = K();
+    if (shape === 'custom' && !drawn) return toast('Dessine d’abord la forme de ta boîte (bouton « Dessiner la forme »).');
     if (!(L > 2 && P > 2 && Hh > 2)) return toast('Donne des dimensions intérieures plus grandes que 2 mm.');
+    $('#dlg-box').close(); busy(true, 'Fabrication de la boîte…'); await nextFrame();
     const color = nextColor();
-    const box = newObj('box', { size: { x: r2(L + 2 * w * k), y: r2(Hh + w), z: r2(P + 2 * w * k) }, params: { wall: w, shape, r }, color });
+    let size = { x: r2(L + 2 * w * k), y: r2(Hh + w), z: r2(P + 2 * w * k) }, extra = {};
+    if (shape === 'custom') { // contour extérieur = la forme dessinée, élargie de l'épaisseur des parois
+      const o = outerOutline(drawn.loop, w);
+      size = { x: r2(o.W), y: r2(Hh + w), z: r2(o.D) }; extra = { outline: o.outline, draw: drawn.draw };
+    }
+    const box = newObj('box', { size, params: { wall: w, shape, r, ...extra }, color });
     state.objects.push(box); syncMesh(box);
     box.pos.x = -(box.size.x / 2 + 6) * ($('#box-lid').checked ? 1 : 0); syncTransform(box); setMinY(box, 0);
     if ($('#box-lid').checked) {
-      const lid = newObj('lid', { size: { x: box.size.x, y: r2(w + skirt + lip), z: box.size.z }, params: { wall: w, clr, boxId: box.id, shape, r, skirt }, color });
+      const lid = newObj('lid', { size: { x: box.size.x, y: r2(w + skirt + lip), z: box.size.z }, params: { wall: w, clr, boxId: box.id, shape, r, skirt, outline: extra.outline }, color });
       state.objects.push(lid); syncMesh(lid); lid.pos.x = box.size.x / 2 + 6; syncTransform(lid); setMinY(lid, 0);
     }
     state.selected = new Set([box]);
     $('#dlg-box').close();
+    busy(false);
     emit('box', false); pushHistory(); refreshUI(); setView('home');
     flash('📦 Ta boîte est prête ! À gauche la boîte, à droite le couvercle (posé à l’envers pour l’impression). Utilise <b>🔩 Percer</b> pour les trous.' +
       (2 * box.size.x + 12 > PLATE ? '<br>Ensemble, ils sont trop grands pour le plateau : au moment de télécharger, prends-les l’un après l’autre (« Seulement la sélection »).' : ''));
+  });
+}
+/* ----- Boîte de forme libre : la forme est dessinée dans l'atelier Silhouette ----- */
+/** Le plus grand morceau du dessin, en mm, centré : c'est l'intérieur de la boîte. */
+function innerFromDrawing(r) {
+  const outs = r.loops.filter(l => area(l) > 0).sort((a, b) => area(b) - area(a));
+  if (!outs.length) return null;
+  const mm = r.mmPx, L = outs[0];
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of L) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  return { loop: L.map(([x, y]) => [(x - cx) * mm, (y - cy) * mm]), w: (x1 - x0) * mm, h: (y1 - y0) * mm, pieces: outs.length,
+    draw: { src: r.src, sheet: r.sheet, fills: r.fills } };
+}
+/** Contour extérieur (forme élargie de la paroi), ramené à un carré 1 × 1 centré, et sa taille. */
+function outerOutline(inner, wall) {
+  const L = offsetLoop(inner, -wall).filter(l => area(l) > 0).sort((a, b) => area(b) - area(a))[0] || inner;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of L) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const W = x1 - x0, D = y1 - y0, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  return { outline: L.map(([x, y]) => [+((x - cx) / W).toFixed(5), +((y - cy) / D).toFixed(5)]), W, D };
+}
+/** Redessiner la forme d'une boîte (ou de son couvercle) : la boîte et le couvercle changent ensemble. */
+function redrawBoxShape(o) {
+  const box = o.type === 'lid' ? state.objects.find(b => b.id === o.params.boxId) : o;
+  if (!box?.params.draw) return toast('Le dessin de cette boîte n’a pas été gardé.');
+  openSilhouette({ mode: 'box', ...box.params.draw }, r => {
+    const d = innerFromDrawing(r); if (!d) return;
+    const { outline, W, D } = outerOutline(d.loop, box.params.wall ?? 2), b0 = worldBox(box).min.y;
+    box.params.outline = outline; box.params.draw = d.draw; box.size.x = r2(W); box.size.z = r2(D);
+    syncMesh(box); setMinY(box, b0); linkLid(box); pushHistory(); refreshUI();
+    flash(`✏️ Nouvelle forme : la boîte mesure ${r2(W)} × ${r2(D)} mm à l’extérieur. Le couvercle a suivi.`);
   });
 }
 function newSilhouette() {

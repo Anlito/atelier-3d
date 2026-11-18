@@ -167,6 +167,10 @@
     <div class="box-form">
       <label>Modèle <select id="box-preset"></select></label>
       <div class="box-shapes" id="box-shapes" role="radiogroup" aria-label="Forme de la boîte"></div>
+      <div id="box-draw" class="box-draw" hidden>
+        <button type="button" id="box-draw-btn" class="soft"><i data-ic="pencil"></i> <span>Dessiner la forme</span></button>
+        <p id="box-draw-info" class="info">Dessine l’<b>intérieur</b> de ta boîte vu de dessus, puis remplis-le. L’assistant ajoute les parois tout autour et fabrique le couvercle de la même forme.</p>
+      </div>
       <label class="num" id="box-r-wrap" hidden data-title="Rayon des coins" data-help="Plus le rayon est grand, plus les coins sont arrondis."><span>Rayon des coins (mm)</span><input id="box-r" type="number" step="1" value="8"></label>
       <div class="row3">
         <label class="num"><span>Largeur int.</span><input id="box-L" type="number" step="1"></label>
@@ -188,8 +192,8 @@
 
 <!-- Atelier Silhouette -->
 <dialog id="dlg-sil" class="dlg full">
-  <h2><img src="img/outils/silhouette.png" alt=""> Atelier Silhouette</h2>
-  <p class="lead">Trace les <b>contours</b> avec un trait d’épaisseur fixe, puis <b>remplis</b> les zones : le <b>noir</b> sera en plastique, le blanc à l’intérieur devient des trous. <span class="muted">Molette : zoomer · clic droit (ou Espace) + glisser : faire défiler la feuille.</span></p>
+  <h2 id="sil-title"><img src="img/outils/silhouette.png" alt=""> <span>Atelier Silhouette</span></h2>
+  <p class="lead" id="sil-lead">Trace les <b>contours</b> avec un trait d’épaisseur fixe, puis <b>remplis</b> les zones : le <b>noir</b> sera en plastique, le blanc à l’intérieur devient des trous. <span class="muted">Molette : zoomer · clic droit (ou Espace) + glisser : faire défiler la feuille.</span></p>
   <div class="sil-wrap">
     <div class="sil-tools">
       <div class="sil-grid-tools">
@@ -229,7 +233,7 @@
     </div>
     <div class="sil-side">
       <label class="num" data-title="Taille de la feuille" data-help="La feuille de dessin est un carré de cette taille, en vrai. Changer la taille de la feuille ne change pas la taille de ton dessin : une feuille plus grande te donne juste plus de place autour."><span>Taille de la feuille (mm)</span><input id="sil-sheet" type="number" value="150" step="10" min="20"></label>
-      <label class="num"><span>Épaisseur (mm)</span><input id="sil-t" type="number" value="2" step="0.5"></label>
+      <label class="num" id="sil-t-wrap"><span>Épaisseur (mm)</span><input id="sil-t" type="number" value="2" step="0.5"></label>
       <label data-title="Lissage" data-help="Plus c’est lissé, plus les bords sont doux (et le fichier léger). Moins c’est lissé, plus les détails sont fidèles.">Lissage des bords<input id="sil-smooth" type="range" min="0.5" max="4" step="0.1" value="1.2"></label>
       <p id="sil-info" class="info"></p>
       <p id="sil-msg" class="bad"></p>

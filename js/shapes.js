@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Brush, Evaluator, ADDITION, SUBTRACTION } from 'three-bvh-csg';
+import { offsetLoop } from './contours.js';
 
 const evaluator = new Evaluator();
 evaluator.attributes = ['position', 'normal'];
@@ -103,7 +104,7 @@ function loopsToShapes(loops) {
 }
 
 /* ---------- contours de boîte : rectangle, coins arrondis, rond/ovale, hexagone, octogone ---------- */
-export const BOX_SHAPES = { rect: 'Rectangle', round: 'Coins arrondis', ellipse: 'Rond / ovale', hex: 'Hexagone', oct: 'Octogone' };
+export const BOX_SHAPES = { rect: 'Rectangle', round: 'Coins arrondis', ellipse: 'Rond / ovale', hex: 'Hexagone', oct: 'Octogone', custom: 'Ma forme' };
 // pour les polygones, rentrer la paroi d'une épaisseur w réduit un peu plus la largeur totale
 const insetK = k => (k === 'hex' ? 1 / Math.cos(Math.PI / 6) : k === 'oct' ? 1 / Math.cos(Math.PI / 8) : 1);
 function outline(k, W, D, r = 0) {
@@ -124,16 +125,25 @@ function outline(k, W, D, r = 0) {
   s.lineTo(-hw, -hd + r); s.absarc(-hw + r, -hd + r, r, Math.PI, Math.PI * 1.5, false);
   return s;
 }
-/** Bloc plein de contour k, du niveau y0 jusqu'à y0 + h. */
-function prism(k, W, D, h, r, y0) {
-  const g = new THREE.ExtrudeGeometry(outline(k, W, D, r), { depth: h, bevelEnabled: false, curveSegments: 24 });
+/**
+ * Contour de boîte (W × D) rentré de « inset » mm, en formes THREE.
+ * « Ma forme » (k = custom) : p.outline est le contour dessiné, ramené à un carré de 1 × 1 centré.
+ */
+function profile(k, W, D, inset, r, p) {
+  if (k === 'custom' && p.outline?.length > 2) {
+    const loop = p.outline.map(([x, y]) => [x * W, y * D]);
+    const loops = inset > 0.01 ? offsetLoop(loop, inset) : [loop];
+    return loopsToShapes(loops);
+  }
+  const K = insetK(k), w = W - 2 * inset * K, d = D - 2 * inset * K;
+  return w > 0.2 && d > 0.2 ? [outline(k, w, d, Math.max(0, r - inset))] : [];
+}
+/** Bloc plein d'un contour, du niveau y0 jusqu'à y0 + h (null si le contour est vide). */
+function prism(shapes, h, y0) {
+  if (!shapes.length) return null;
+  const g = new THREE.ExtrudeGeometry(shapes, { depth: h, bevelEnabled: false, curveSegments: 24 });
   g.rotateX(-Math.PI / 2); g.translate(0, y0, 0);
   return g;
-}
-/** Paroi : contour (W, D) moins le même contour rentré de t. */
-function ring(k, W, D, t, h, r, y0) {
-  const K = insetK(k);
-  return csg(prism(k, W, D, h, r, y0), prism(k, W - 2 * t * K, D - 2 * t * K, h + 2, Math.max(0, r - t), y0 - 1), SUBTRACTION);
 }
 
 /* ---------- les formes ---------- */
@@ -187,26 +197,30 @@ const BUILD = {
   // Boîte creuse ouverte en haut : s = dimensions extérieures
   // Boîte creuse ouverte en haut. s = dimensions extérieures ; p.shape = contour, p.r = rayon des coins
   box: (s, p) => {
-    const k = p.shape || 'rect', K = insetK(k), r = p.r || 0;
+    const k = p.shape || 'rect', K = insetK(k), r = p.r || 0, P = i => profile(k, s.x, s.z, i, r, p);
     const w = Math.max(0.4, Math.min(p.wall ?? 2, s.x / (2 * K) - 0.5, s.z / (2 * K) - 0.5, s.y - 0.5));
-    const outer = prism(k, s.x, s.z, s.y, r, -s.y / 2);
-    const inner = prism(k, s.x - 2 * w * K, s.z - 2 * w * K, s.y, Math.max(0, r - w), -s.y / 2 + w);
-    return csg(outer, inner, SUBTRACTION);
+    const outer = prism(P(0), s.y, -s.y / 2);
+    const inner = prism(P(w), s.y, -s.y / 2 + w);
+    return inner ? csg(outer, inner, SUBTRACTION) : outer;
   },
   // Couvercle, imprimé à l'envers : plaque en bas, éventuellement un bord extérieur (p.skirt),
   // et le rebord qui rentre dans la boîte (hauteur = ce qui reste de s.y)
   lid: (s, p) => {
-    const k = p.shape || 'rect', K = insetK(k), r = p.r || 0;
+    // le couvercle est imprimé à l'envers : une fois retourné (d'avant en arrière) pour fermer la boîte,
+    // sa forme doit retomber sur celle de la boîte, donc on la dessine en miroir (et dans l'autre sens de parcours)
+    if (p.shape === 'custom' && p.outline) p = { ...p, outline: p.outline.map(([x, y]) => [x, -y]).reverse() };
+    const k = p.shape || 'rect', r = p.r || 0, P = i => profile(k, s.x, s.z, i, r, p);
     const w = p.wall ?? 2, clr = p.clr ?? 0.3, t = p.lipT ?? 1.6, y0 = -s.y / 2;
     const skirt = Math.max(0, Math.min(p.skirt || 0, s.y - w));
-    let g = prism(k, s.x, s.z, w + skirt, r, y0);
-    if (skirt > 0.2) g = csg(g, prism(k, s.x - 2 * w * K, s.z - 2 * w * K, skirt + 1, Math.max(0, r - w), y0 + w), SUBTRACTION);
-    const lipH = s.y - w - skirt, inset = (w + clr) * K;
-    const ox = s.x - 2 * inset, oz = s.z - 2 * inset;
-    if (lipH < 0.4 || ox < 2 * t * K + 1 || oz < 2 * t * K + 1) return g;
-    // le rebord part de la plaque (il traverse le bord extérieur) et dépasse de lipH
-    const lip = ring(k, ox, oz, t, skirt + lipH + 0.05, Math.max(0, r - w - clr), y0 + w - 0.05);
-    return csg(g, lip, ADDITION);
+    let g = prism(P(0), w + skirt, y0);
+    if (skirt > 0.2) { const cav = prism(P(w), skirt + 1, y0 + w); if (cav) g = csg(g, cav, SUBTRACTION); }
+    const lipH = s.y - w - skirt;
+    if (lipH < 0.4) return g;
+    // le rebord qui rentre dans la boîte : une paroi d'épaisseur t, juste à l'intérieur de la paroi de la boîte (avec le jeu)
+    // il part de la plaque (il traverse le bord extérieur) et dépasse de lipH
+    const lo = prism(P(w + clr), skirt + lipH + 0.05, y0 + w - 0.05), li = prism(P(w + clr + t), skirt + lipH + 2, y0 + w - 1.05);
+    if (!lo || !li) return g;
+    return csg(g, csg(lo, li, SUBTRACTION), ADDITION);
   },
   silhouette: (s, p) => {
     const shapes = loopsToShapes(p.loops || []);

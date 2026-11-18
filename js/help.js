@@ -179,7 +179,7 @@ export const GUIDE = [
     <p>Tu peux percer plusieurs fois. <b>Échap</b> ou « Terminer » pour arrêter.</p>
     <p>Le trou percé est un objet comme les autres : tu peux le déplacer, changer son diamètre ou le supprimer.</p>` },
   { t: '📦 Boîte avec couvercle', h: `
-    <p>Choisis la <b>forme</b> : rectangle, coins arrondis, rond / ovale, hexagone ou octogone.</p><p>Donne la place qu’il te faut <b>à l’intérieur</b> (par exemple la taille de ta carte Arduino + 5 mm de chaque côté). L’assistant ajoute les parois et le fond.</p>
+    <p>Choisis la <b>forme</b> : rectangle, coins arrondis, rond / ovale, hexagone, octogone… ou <b>Ma forme</b> : tu dessines l’intérieur de ta boîte vu de dessus (comme dans l’atelier Silhouette), tu choisis la hauteur, et l’assistant fabrique la boîte et le couvercle de cette forme. Pour la changer ensuite : « Redessiner la forme » dans les propriétés.</p><p>Donne la place qu’il te faut <b>à l’intérieur</b> (par exemple la taille de ta carte Arduino + 5 mm de chaque côté). L’assistant ajoute les parois et le fond.</p>
     <p>Le <b>couvercle</b> a un rebord qui s’emboîte dans la boîte. Le <b>jeu</b> (0,3 mm) laisse un peu de place pour qu’il rentre sans forcer : augmente-le s’il est trop serré.</p>
     <p><b>Hauteur du couvercle</b> : 0 = couvercle plat ; plus grand = le couvercle a des bords, la boîte se ferme comme deux moitiés.</p><p>Le couvercle est posé à l’envers (plaque en bas) : c’est le bon sens pour l’imprimer.</p>
     <p>Pour placer tes composants, ajoute des <b>repères</b> (Arduino, boutons…) et active <b>Rayons X</b>.</p>` },

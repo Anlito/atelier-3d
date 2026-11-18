@@ -149,7 +149,16 @@ export function initSilhouette() {
   cv.addEventListener('pointerleave', () => { cursor = null; $('#sil-pos').hidden = true; overlay(); });
 }
 
+let leadHTML = null;
 export function openSilhouette(opts, done, draw) {
+  // mode « forme de boîte » : même atelier, autres consignes
+  const box = opts.mode === 'box';
+  leadHTML ??= $('#sil-lead').innerHTML;
+  $('#sil-title span').textContent = box ? 'Forme de ta boîte (vue de dessus)' : 'Atelier Silhouette';
+  $('#sil-lead').innerHTML = box
+    ? 'Dessine le contour de l’<b>intérieur</b> de ta boîte, vu de dessus, puis <b>remplis</b>-le en noir. Le quadrillage donne les vraies mesures (un carreau = 5 mm). Si tu dessines plusieurs formes, seule la plus grande sert.'
+    : leadHTML;
+  $('#sil-t-wrap').hidden = box;
   onDone = done; onDraw = draw; undo = []; orig = null; drag = null;
   $('#sil-imgopts').hidden = true;
   sheet = opts.sheet || 150; $('#sil-sheet').value = sheet; gridKey = ''; picked = null;
@@ -175,7 +184,7 @@ export function openSilhouette(opts, done, draw) {
     };
     im.src = opts.src;
   }
-  $('#sil-ok').textContent = opts.edit ? '✔ Mettre à jour la pièce' : '✔ Créer la pièce 3D';
+  $('#sil-ok').textContent = box ? '✔ Utiliser cette forme' : opts.edit ? '✔ Mettre à jour la pièce' : '✔ Créer la pièce 3D';
   $('#sil-msg').textContent = '';
   $('#dlg-sil').showModal();
   space = false; setCursor(); fitView();
@@ -623,5 +632,5 @@ function finish() {
     for (let i = 0; i < W * H; i++) { im.data[i * 4] = fm[i]; im.data[i * 4 + 3] = 255; }
     g.putImageData(im, 0, 0); fills = c.toDataURL('image/png');
   }
-  onDone?.({ loops, fills, src: cv.toDataURL('image/png'), w: bw * mm, h: bh * mm, thickness: t, sheet: sheetMm() });
+  onDone?.({ loops, fills, mmPx: mm, src: cv.toDataURL('image/png'), w: bw * mm, h: bh * mm, thickness: t, sheet: sheetMm() });
 }
